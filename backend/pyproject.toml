@@ -1,0 +1,36 @@
+[build-system]
+requires = ["setuptools>=75.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "fashionstore-backend"
+version = "0.1.0"
+description = "FashionStore modular monolith API"
+requires-python = ">=3.13,<3.14"
+dependencies = [
+    "alembic==1.16.4",
+    "argon2-cffi==25.1.0",
+    "email-validator==2.3.0",
+    "fastapi==0.116.1",
+    "pydantic-settings==2.10.1",
+    "psycopg[binary]==3.2.9",
+    "python-jose[cryptography]==3.5.0",
+    "python-multipart==0.0.20",
+    "sqlalchemy==2.0.43",
+    "uvicorn[standard]==0.35.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "httpx==0.28.1",
+    "pytest==8.4.1",
+    "pytest-asyncio==1.1.0",
+    "ruff==0.12.9",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
