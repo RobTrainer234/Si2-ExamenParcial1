@@ -1,9 +1,10 @@
 # Inventario mínimo del Ciclo 1
 
-El módulo `/api/v1/inventory` mantiene únicamente el stock actual por
-`branch_id + product_variant_id` y requiere `ADMIN`.
+El módulo `/api/v1/inventory` mantiene el stock actual por
+`branch_id + product_variant_id`. Los administradores pueden gestionarlo
+globalmente; los encargados de sucursal solo pueden consultar y ajustar las
+sucursales asignadas, mientras que los cajeros tienen acceso de lectura.
 
-No implementa movimientos, reservas, ventas, devoluciones ni auditoría de
-inventario. Solo se permiten referencias a sucursales, productos y variantes
-activas, y la base de datos impide cantidades negativas y combinaciones
-duplicadas.
+Cada ajuste de cantidad genera un movimiento `IN` o `OUT` con stock anterior,
+stock nuevo, usuario y motivo. También se registra en la bitácora transversal.
+No incluye reservas, ventas, devoluciones ni transferencias entre sucursales.

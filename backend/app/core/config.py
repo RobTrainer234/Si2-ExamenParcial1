@@ -13,10 +13,14 @@ class Settings(BaseSettings):
     access_token_expire_minutes: int = 15
     refresh_token_expire_days: int = 30
     frontend_url: str = "http://localhost:4200"
+    media_dir: str = "media"
     seed_admin_email: str = "admin@fashionstore.local"
     seed_admin_password: str = ""
 
-    model_config = SettingsConfigDict(env_file=(".env", "../.env"), case_sensitive=False)
+    # The shared Docker env file also contains infrastructure variables that
+    # are not application settings. Keep those variables available to the
+    # containers without making API startup fail on local test runs.
+    model_config = SettingsConfigDict(env_file=(".env", "../.env"), case_sensitive=False, extra="ignore")
 
 
 @lru_cache

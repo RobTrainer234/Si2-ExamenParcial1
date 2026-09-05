@@ -52,7 +52,7 @@ def get_city(db: Session, city_id: int) -> City:
 
 def create_city(db: Session, data: CityCreateRequest) -> City:
     name = data.name.strip()
-    if db.scalar(select(City.id).where(City.name == name)):
+    if db.scalar(select(City.id).where(func.lower(City.name) == name.lower())):
         raise _conflict("La ciudad ya está registrada.")
     city = City(name=name)
     db.add(city)
@@ -67,7 +67,7 @@ def create_city(db: Session, data: CityCreateRequest) -> City:
 def update_city(db: Session, city: City, data: CityUpdateRequest) -> City:
     if data.name is not None:
         name = data.name.strip()
-        existing = db.scalar(select(City.id).where(City.name == name, City.id != city.id))
+        existing = db.scalar(select(City.id).where(func.lower(City.name) == name.lower(), City.id != city.id))
         if existing:
             raise _conflict("La ciudad ya está registrada.")
         city.name = name

@@ -20,7 +20,23 @@ class FashionStoreApp extends StatelessWidget {
         brightness: Brightness.light,
       ),
       scaffoldBackgroundColor: const Color(0xfff6f3ee),
+      fontFamily: 'Arial',
       useMaterial3: true,
+      appBarTheme: const AppBarTheme(
+        backgroundColor: Color(0xfff6f3ee),
+        foregroundColor: Color(0xff242321),
+        elevation: 0,
+        centerTitle: false,
+      ),
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: Color(0xffebe6de),
+        border: OutlineInputBorder(borderSide: BorderSide.none),
+        enabledBorder: OutlineInputBorder(borderSide: BorderSide.none),
+        focusedBorder: OutlineInputBorder(
+          borderSide: BorderSide(color: Color(0xffc35f43)),
+        ),
+      ),
     ),
     home: const AuthGate(),
   );

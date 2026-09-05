@@ -2,6 +2,22 @@
 
 Las migraciones se ejecutan con Alembic desde `backend/migrations`.
 
+## Inspeccionar el modelo completo
+
+El script `backend/scripts/inspeccionar_modelo_bd.py` muestra las clases
+SQLAlchemy, tablas, columnas, restricciones, indices, relaciones y el DDL de
+PostgreSQL de los tres ciclos.
+
+Ejecutar desde `backend/`:
+
+```bash
+python scripts/inspeccionar_modelo_bd.py
+python scripts/inspeccionar_modelo_bd.py --salida ../docs/esquema_generado.sql
+```
+
+El segundo comando genera un archivo SQL para revisión documental. El archivo
+se puede regenerar después de cualquier cambio en `backend/app/core/models.py`.
+
 ## Seed de desarrollo
 
 El seed disponible está en `backend/app/core/seed.py`. Crea los cinco roles base

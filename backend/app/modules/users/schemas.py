@@ -8,6 +8,8 @@ class AdminUserCreateRequest(BaseModel):
     phone: str = Field(min_length=7, max_length=30)
     password: str = Field(min_length=8, max_length=128)
     role: str = Field(default="CLIENT", min_length=1, max_length=32)
+    branch_ids: list[int] = Field(default_factory=list)
+    supplier_id: int | None = Field(default=None, gt=0)
 
     @field_validator("phone")
     @classmethod
@@ -37,6 +39,8 @@ class UserUpdateRequest(BaseModel):
     email: EmailStr | None = None
     phone: str | None = Field(default=None, min_length=7, max_length=30)
     role: str | None = Field(default=None, min_length=1, max_length=32)
+    branch_ids: list[int] | None = None
+    supplier_id: int | None = Field(default=None, gt=0)
 
     @field_validator("phone")
     @classmethod
@@ -59,6 +63,8 @@ class UserResponse(BaseModel):
     phone: str
     role: str
     is_active: bool
+    branch_ids: list[int] = Field(default_factory=list)
+    supplier_id: int | None = None
 
 
 class UserPage(BaseModel):

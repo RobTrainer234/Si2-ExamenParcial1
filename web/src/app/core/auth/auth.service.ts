@@ -45,6 +45,11 @@ export class AuthService {
     return this.sessionState()?.access_token ?? null;
   }
 
+  hasPermission(permission: string): boolean {
+    const user = this.currentUser();
+    return user?.role === 'ADMIN' || Boolean(user?.permissions?.includes(permission));
+  }
+
   private saveSession(response: AuthResponse): void {
     localStorage.setItem(SESSION_KEY, JSON.stringify(response));
     this.sessionState.set(response);

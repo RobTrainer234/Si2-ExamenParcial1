@@ -5,7 +5,7 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, joinedload
 
-from app.core.models import Branch, Inventory, ProductVariant
+from app.core.models import Branch, Inventory, InventoryMovement, ProductVariant, User
 from app.modules.inventory.schemas import InventoryCreateRequest, InventoryUpdateRequest
 
 
@@ -34,6 +34,8 @@ def serialize_inventory(item: Inventory) -> dict[str, object]:
         "sku": variant.sku,
         "size_id": variant.size_id,
         "size_name": variant.size.name,
+        "size_type": variant.size.size_type,
+        "size_sort_order": variant.size.sort_order,
         "color_id": variant.color_id,
         "color_name": variant.color.name,
         "stock_quantity": item.stock_quantity,
@@ -58,12 +60,15 @@ def _validate_references(db: Session, branch_id: int, variant_id: int) -> Produc
     return variant
 
 
-def list_inventory(db: Session, page: int, page_size: int, branch_id: int | None, product_id: int | None) -> dict[str, object]:
+def list_inventory(db: Session, page: int, page_size: int, branch_id: int | None, product_id: int | None, allowed_branch_ids: set[int] | None = None) -> dict[str, object]:
     statement = _inventory_query().join(ProductVariant, Inventory.product_variant_id == ProductVariant.id).order_by(Inventory.id.desc())
     count_statement = select(func.count(Inventory.id)).join(ProductVariant, Inventory.product_variant_id == ProductVariant.id)
     if branch_id is not None:
         statement = statement.where(Inventory.branch_id == branch_id)
         count_statement = count_statement.where(Inventory.branch_id == branch_id)
+    if allowed_branch_ids is not None:
+        statement = statement.where(Inventory.branch_id.in_(allowed_branch_ids))
+        count_statement = count_statement.where(Inventory.branch_id.in_(allowed_branch_ids))
     if product_id is not None:
         statement = statement.where(ProductVariant.product_id == product_id)
         count_statement = count_statement.where(ProductVariant.product_id == product_id)
@@ -86,8 +91,20 @@ def create_inventory(db: Session, data: InventoryCreateRequest) -> Inventory:
     return get_inventory(db, item.id)
 
 
-def update_inventory(db: Session, item: Inventory, data: InventoryUpdateRequest) -> Inventory:
+def update_inventory(db: Session, item: Inventory, data: InventoryUpdateRequest, user: User | None = None) -> Inventory:
+    previous_stock = item.stock_quantity
     item.stock_quantity = data.stock_quantity
+    difference = data.stock_quantity - previous_stock
+    if difference:
+        db.add(InventoryMovement(
+            inventory_id=item.id,
+            movement_type="IN" if difference > 0 else "OUT",
+            quantity=abs(difference),
+            stock_before=previous_stock,
+            stock_after=data.stock_quantity,
+            reason="Ajuste manual de inventario",
+            created_by=user.id if user else None,
+        ))
     try:
         db.flush()
     except IntegrityError as exc:

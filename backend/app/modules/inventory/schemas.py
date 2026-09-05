@@ -21,6 +21,8 @@ class InventoryResponse(BaseModel):
     sku: str
     size_id: int
     size_name: str
+    size_type: str
+    size_sort_order: int
     color_id: int
     color_name: str
     stock_quantity: int

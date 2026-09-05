@@ -19,7 +19,7 @@
             "styles": ["src/styles.css"]
           },
           "configurations": {
-            "development": { "optimization": false, "sourceMap": true },
+            "development": { "optimization": { "scripts": false, "styles": false, "fonts": false }, "sourceMap": true },
             "production": { "optimization": true, "sourceMap": false, "outputHashing": "all" }
           }
         },

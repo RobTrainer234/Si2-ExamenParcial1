@@ -49,4 +49,6 @@ def me(current_user: Annotated[User, Depends(get_current_user)]) -> dict[str, ob
         "phone": current_user.phone,
         "role": current_user.role.code,
         "is_active": current_user.is_active,
+        "permissions": sorted(permission.code for permission in current_user.role.permissions if permission.is_active),
+        "supplier_id": current_user.supplier_id,
     }

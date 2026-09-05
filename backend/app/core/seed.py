@@ -2,7 +2,7 @@ from sqlalchemy import select
 
 from app.core.config import settings
 from app.core.database import SessionLocal
-from app.core.models import Role, User
+from app.core.models import Permission, Role, User
 from app.core.security import hash_password
 
 ROLES = {
@@ -11,6 +11,29 @@ ROLES = {
     "BRANCH_MANAGER": "Encargado de sucursal",
     "CASHIER": "Cajero",
     "SUPPLIER": "Proveedor",
+}
+
+PERMISSIONS = {
+    "catalog.read": "Consultar catálogo",
+    "catalog.availability": "Consultar disponibilidad",
+    "users.manage": "Gestionar usuarios y roles",
+    "locations.manage": "Gestionar ciudades y sucursales",
+    "masters.manage": "Gestionar catálogos maestros",
+    "suppliers.manage": "Gestionar proveedores",
+    "suppliers.portal": "Consultar portal de proveedor",
+    "seasons.manage": "Gestionar temporadas y colecciones",
+    "products.manage": "Gestionar productos",
+    "products.publish": "Publicar productos",
+    "inventory.read": "Consultar inventario",
+    "inventory.adjust": "Ajustar inventario",
+}
+
+ROLE_PERMISSIONS = {
+    "ADMIN": set(PERMISSIONS),
+    "CLIENT": {"catalog.read", "catalog.availability"},
+    "BRANCH_MANAGER": {"catalog.read", "catalog.availability", "inventory.read", "inventory.adjust"},
+    "CASHIER": {"catalog.read", "catalog.availability", "inventory.read"},
+    "SUPPLIER": {"catalog.read", "suppliers.portal"},
 }
 
 
@@ -29,6 +52,17 @@ def seed_development_data() -> None:
                 db.add(role)
                 db.flush()
             roles[code] = role
+
+        permissions: dict[str, Permission] = {}
+        for code, name in PERMISSIONS.items():
+            permission = db.scalar(select(Permission).where(Permission.code == code))
+            if permission is None:
+                permission = Permission(code=code, name=name)
+                db.add(permission)
+                db.flush()
+            permissions[code] = permission
+        for role_code, permission_codes in ROLE_PERMISSIONS.items():
+            roles[role_code].permissions = [permissions[code] for code in permission_codes]
 
         admin = db.scalar(select(User).where(User.email == settings.seed_admin_email.lower()))
         if admin is None:

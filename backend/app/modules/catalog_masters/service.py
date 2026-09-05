@@ -6,7 +6,7 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.core.models import Category, Color
+from app.core.models import Category, Color, Product, ProductVariant, Size
 
 
 def _conflict(message: str) -> HTTPException:
@@ -19,11 +19,14 @@ def serialize_master(item: Any) -> dict[str, object]:
         data["description"] = item.description
     if isinstance(item, Color):
         data["hex_code"] = item.hex_code
+    if isinstance(item, Size):
+        data["size_type"] = item.size_type
+        data["sort_order"] = item.sort_order
     return data
 
 
 def list_master(db: Session, model: type[Any], page: int, page_size: int, query: str | None) -> dict[str, object]:
-    statement = select(model).order_by(model.name)
+    statement = select(model).order_by(model.sort_order, model.name) if model is Size else select(model).order_by(model.name)
     count_statement = select(func.count(model.id))
     if query:
         condition = model.name.ilike(f"%{query.strip()}%")
@@ -46,6 +49,13 @@ def create_master(db: Session, model: type[Any], values: dict[str, object], labe
     if db.scalar(select(model.id).where(model.name == name)):
         raise _conflict(f"El {label.lower()} ya está registrado.")
     values["name"] = name
+    if model is Size:
+        if name.isdigit() and values.get("size_type") == "ALPHA":
+            values["size_type"] = "NUMERIC"
+        if name.lower() in {"unica", "única", "one size", "os"}:
+            values["size_type"] = "ONE_SIZE"
+        if not values.get("sort_order"):
+            values["sort_order"] = int(name) if name.isdigit() else {"XS": 10, "S": 20, "M": 30, "L": 40, "XL": 50, "XXL": 60}.get(name.upper(), 100)
     item = model(**values)
     db.add(item)
     try:
@@ -73,6 +83,13 @@ def update_master(db: Session, item: Any, values: dict[str, object], label: str)
 
 
 def set_active(db: Session, item: Any, active: bool) -> Any:
+    if not active:
+        if isinstance(item, Category) and db.scalar(select(Product.id).where(Product.category_id == item.id, Product.is_active.is_(True))):
+            raise _conflict("No se puede desactivar una categoría asociada a productos activos.")
+        if isinstance(item, Size) and db.scalar(select(ProductVariant.id).where(ProductVariant.size_id == item.id, ProductVariant.is_active.is_(True))):
+            raise _conflict("No se puede desactivar una talla asociada a variantes activas.")
+        if isinstance(item, Color) and db.scalar(select(ProductVariant.id).where(ProductVariant.color_id == item.id, ProductVariant.is_active.is_(True))):
+            raise _conflict("No se puede desactivar un color asociado a variantes activas.")
     item.is_active = active
     db.flush()
     return item

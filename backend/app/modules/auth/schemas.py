@@ -41,7 +41,7 @@ class RefreshRequest(BaseModel):
 
 
 class LogoutRequest(BaseModel):
-    refresh_token: str | None = None
+    refresh_token: str = Field(min_length=1)
 
 
 class UserResponse(BaseModel):
@@ -54,6 +54,8 @@ class UserResponse(BaseModel):
     phone: str
     role: str
     is_active: bool
+    permissions: list[str] = Field(default_factory=list)
+    supplier_id: int | None = None
 
 
 class TokenResponse(BaseModel):

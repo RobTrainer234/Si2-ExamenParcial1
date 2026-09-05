@@ -4,12 +4,12 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from app.core.database import get_db
 from app.core.models import Category, Color, Size, User
-from app.modules.auth.dependencies import require_admin
+from app.modules.auth.dependencies import require_permission
 from app.modules.catalog_masters import service
 from app.modules.catalog_masters.schemas import CategoryCreateRequest, CategoryResponse, CategoryUpdateRequest, ColorCreateRequest, ColorResponse, ColorUpdateRequest, MasterPage, SizeCreateRequest, SizeResponse, SizeUpdateRequest
 
 router = APIRouter(tags=["catalog-masters"])
-AdminUser = Annotated[User, Depends(require_admin)]
+AdminUser = Annotated[User, Depends(require_permission("masters.manage"))]
 
 
 def _list(model: type[Any], _: AdminUser, db: Any, page: int, page_size: int, q: str | None):

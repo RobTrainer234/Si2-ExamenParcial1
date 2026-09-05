@@ -1,3 +1,5 @@
+from typing import Literal
+
 from pydantic import BaseModel, Field, field_validator
 
 
@@ -31,12 +33,16 @@ class CategoryResponse(BaseModel):
 
 class SizeCreateRequest(BaseModel):
     name: str = Field(min_length=1, max_length=20)
+    size_type: Literal["ALPHA", "NUMERIC", "ONE_SIZE"] = "ALPHA"
+    sort_order: int = Field(default=0, ge=0, le=9999)
 
     _clean_name = field_validator("name")(clean_name)
 
 
 class SizeUpdateRequest(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=20)
+    size_type: Literal["ALPHA", "NUMERIC", "ONE_SIZE"] | None = None
+    sort_order: int | None = Field(default=None, ge=0, le=9999)
 
     _clean_name = field_validator("name")(clean_name)
 
@@ -44,6 +50,8 @@ class SizeUpdateRequest(BaseModel):
 class SizeResponse(BaseModel):
     id: int
     name: str
+    size_type: str
+    sort_order: int
     is_active: bool
 
 

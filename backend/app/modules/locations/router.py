@@ -4,12 +4,12 @@ from fastapi import APIRouter, Depends, Query, status
 
 from app.core.database import get_db
 from app.core.models import User
-from app.modules.auth.dependencies import require_admin
+from app.modules.auth.dependencies import require_permission
 from app.modules.locations import service
 from app.modules.locations.schemas import BranchCreateRequest, BranchPage, BranchResponse, BranchUpdateRequest, CityCreateRequest, CityPage, CityResponse, CityUpdateRequest
 
 router = APIRouter(tags=["locations"])
-AdminUser = Annotated[User, Depends(require_admin)]
+AdminUser = Annotated[User, Depends(require_permission("locations.manage"))]
 
 
 @router.get("/cities", response_model=CityPage)

@@ -1,6 +1,6 @@
 services:
   postgres:
-    image: postgres:17-alpine
+    image: postgres:17.11-alpine
     restart: unless-stopped
     environment:
       POSTGRES_DB: ${POSTGRES_DB:?Set POSTGRES_DB in .env}
@@ -54,6 +54,7 @@ services:
       - "${BACKEND_PORT:-8000}:8000"
     volumes:
       - ./backend:/app
+      - ./backend/media:/app/media
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -65,7 +66,7 @@ services:
       retries: 10
 
   web:
-    image: node:22-alpine
+    image: node:22.22.3-alpine
     restart: unless-stopped
     working_dir: /app
     environment:

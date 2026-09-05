@@ -7,11 +7,14 @@
 | Usuarios y autenticacion | Completo | Registro, login, logout, refresh, Argon2id, JWT y roles |
 | Administracion | Completo | Usuarios, ciudades, sucursales, categorias, tallas, colores y proveedores |
 | Catalogo | Completo | Productos, variantes, imagenes, filtros, detalle y disponibilidad |
-| Inventario inicial | Completo | Existencias minimas por variante y sucursal |
+| Inventario inicial | Completo | Existencias por variante y sucursal, ajustes y movimientos auditados |
 | Web | Completo | Angular, guards, interceptor JWT, catalogo y panel admin |
 | Mobile | Completo | Flutter, Riverpod, sesion, catalogo y disponibilidad |
 | Persistencia | Completo | PostgreSQL, SQLAlchemy y migraciones Alembic |
 | Operacion | Completo | Docker Compose, healthchecks, migracion one-shot y Nginx productivo |
+
+La separación funcional entre registro y autenticación se documenta en
+`docs/cycle-1-cu1-cu2.md`.
 
 ## Verificacion realizada
 
@@ -34,3 +37,5 @@ avanzados.
   cargarse mediante la API administrativa.
 - Deben añadirse pruebas E2E de navegador y dispositivo si el siguiente ciclo
   requiere validacion visual o de hardware real.
+- El abastecimiento del Ciclo 1 registra ofertas por proveedor y variante; las
+  órdenes de compra y recepción física pertenecen a un alcance posterior.

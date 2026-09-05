@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.modules.catalog import service
-from app.modules.catalog.schemas import AvailabilityItem, CatalogDetail, CatalogFilters, CatalogPage
+from app.modules.catalog.schemas import AvailabilityItem, CatalogDetail, CatalogFilters, CatalogNavigation, CatalogPage
 
 router = APIRouter(prefix="/catalog", tags=["catalog"])
 
@@ -18,13 +18,22 @@ def list_catalog(
     size_id: int | None = Query(None, gt=0),
     color_id: int | None = Query(None, gt=0),
     branch_id: int | None = Query(None, gt=0),
+    audience: str | None = Query(None, pattern="^(WOMEN|MEN|UNISEX)$"),
+    season_id: int | None = Query(None, gt=0),
+    collection_id: int | None = Query(None, gt=0),
+    sort: str = Query("editorial", pattern="^(editorial|newest)$"),
 ):
-    return service.list_catalog(db, page, page_size, q, category_id, size_id, color_id, branch_id)
+    return service.list_catalog(db, page, page_size, q, category_id, size_id, color_id, branch_id, audience, season_id, collection_id, sort)
 
 
 @router.get("/filters", response_model=CatalogFilters)
 def get_catalog_filters(db: Session = Depends(get_db)):
     return service.catalog_filters(db)
+
+
+@router.get("/navigation", response_model=CatalogNavigation)
+def get_catalog_navigation(db: Session = Depends(get_db)):
+    return service.catalog_navigation(db)
 
 
 @router.get("/{product_id}", response_model=CatalogDetail)

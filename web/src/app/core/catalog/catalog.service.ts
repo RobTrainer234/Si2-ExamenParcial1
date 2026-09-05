@@ -3,7 +3,7 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
 
 import { appConfig } from '../config/app-config';
-import { AvailabilityItem, CatalogDetail, CatalogFilters, CatalogPage } from '../models/api.models';
+import { AvailabilityItem, CatalogDetail, CatalogFilters, CatalogNavigation, CatalogPage } from '../models/api.models';
 
 export interface CatalogQuery {
   page: number;
@@ -13,6 +13,10 @@ export interface CatalogQuery {
   size_id?: number;
   color_id?: number;
   branch_id?: number;
+  audience?: string;
+  season_id?: number;
+  collection_id?: number;
+  sort?: string;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -36,6 +40,8 @@ export class CatalogService {
   filters(): Observable<CatalogFilters> {
     return this.http.get<CatalogFilters>(`${appConfig.apiBaseUrl}/catalog/filters`);
   }
+
+  navigation(): Observable<CatalogNavigation> { return this.http.get<CatalogNavigation>(`${appConfig.apiBaseUrl}/catalog/navigation`); }
 
   availability(productId: number, sizeId: number, colorId: number): Observable<AvailabilityItem[]> {
     const params = new HttpParams().set('size_id', sizeId).set('color_id', colorId);

@@ -4,12 +4,12 @@ from fastapi import APIRouter, Depends, Query, status
 
 from app.core.database import get_db
 from app.core.models import User
-from app.modules.auth.dependencies import require_admin
+from app.modules.auth.dependencies import require_permission
 from app.modules.users import service
 from app.modules.users.schemas import AdminUserCreateRequest, UserPage, UserResponse, UserUpdateRequest
 
 router = APIRouter(prefix="/users", tags=["users"])
-AdminUser = Annotated[User, Depends(require_admin)]
+AdminUser = Annotated[User, Depends(require_permission("users.manage"))]
 
 
 @router.get("", response_model=UserPage)

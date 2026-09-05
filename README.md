@@ -5,10 +5,10 @@ Este repositorio contiene la base del Ciclo 1.
 
 ## Stack fijado
 
-- Python `3.13.9`, FastAPI `0.116.1`, SQLAlchemy `2.0.43`, Alembic `1.16.4`
+- Python `3.13.15`, FastAPI `0.116.1`, SQLAlchemy `2.0.43`, Alembic `1.16.4`
 - Angular `21.0.0`, TypeScript `5.9.2`, Node.js `22`
 - Flutter `3.44.1`, Dart `3.12.1`
-- PostgreSQL `17-alpine`
+- PostgreSQL `17.11-alpine`
 - Docker Compose `v5`
 
 ## Inicio local con Docker
@@ -87,7 +87,12 @@ npm install
 npm start
 npm test
 npm run build
+npm run e2e
 ```
+
+Las pruebas E2E requieren Chromium de Playwright y credenciales de
+administrador definidas mediante `E2E_ADMIN_EMAIL` y `E2E_ADMIN_PASSWORD`.
+Consultar `docs/e2e.md`.
 
 Mobile:
 

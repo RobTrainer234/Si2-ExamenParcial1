@@ -83,7 +83,7 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
       );
     }
     return Scaffold(
-      appBar: AppBar(title: const Text('Detalle')),
+      appBar: AppBar(title: const Text('FASHIONSTORE', style: TextStyle(fontSize: 16, letterSpacing: 2, fontWeight: FontWeight.w700)), actions: [IconButton(onPressed: () {}, icon: const Icon(Icons.favorite_border))]),
       body: ListView(
         padding: const EdgeInsets.all(20),
         children: [
@@ -111,6 +111,7 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
               context,
             ).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w300),
           ),
+          const SizedBox(height: 5),
           Text(
             '${item.price.toStringAsFixed(2)} BOB',
             style: Theme.of(context).textTheme.titleMedium,

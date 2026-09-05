@@ -62,13 +62,23 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen> {
     final auth = ref.watch(authControllerProvider);
     return Scaffold(
       appBar: AppBar(
-        title: const Text('FashionStore'),
+        title: const Text('FASHIONSTORE', style: TextStyle(fontSize: 16, letterSpacing: 2, fontWeight: FontWeight.w700)),
         actions: [
           IconButton(
             onPressed: auth.logout,
             icon: const Icon(Icons.logout),
             tooltip: 'Cerrar sesión',
           ),
+        ],
+      ),
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: 0,
+        onDestinationSelected: (_) {},
+        destinations: const [
+          NavigationDestination(icon: Icon(Icons.auto_awesome_outlined), label: 'Catálogo'),
+          NavigationDestination(icon: Icon(Icons.storefront_outlined), label: 'Tiendas'),
+          NavigationDestination(icon: Icon(Icons.favorite_border), label: 'Favoritos'),
+          NavigationDestination(icon: Icon(Icons.person_outline), label: 'Perfil'),
         ],
       ),
       body: RefreshIndicator(
@@ -135,6 +145,8 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen> {
           context,
         ).textTheme.headlineLarge?.copyWith(fontWeight: FontWeight.w300),
       ),
+      const SizedBox(height: 10),
+      const Text('NUEVA COLECCIÓN · OTOÑO 2024', style: TextStyle(fontSize: 10, letterSpacing: 1.4, color: Color(0xffc35f43))),
       const SizedBox(height: 22),
       TextField(
         controller: search,
@@ -170,29 +182,25 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(
-            child: Container(
-              color: const Color(0xffebe6de),
-              child: item.imageUrl == null
-                  ? const Center(
-                      child: Icon(
-                        Icons.checkroom,
-                        size: 45,
-                        color: Colors.black26,
-                      ),
-                    )
-                  : Image.network(
-                      item.imageUrl!,
-                      fit: BoxFit.cover,
-                      width: double.infinity,
-                      errorBuilder: (_, _, _) => const Icon(
-                        Icons.checkroom,
-                        size: 45,
-                        color: Colors.black26,
-                      ),
-                    ),
-            ),
-          ),
+           Expanded(
+             child: Stack(
+               children: [
+                 Container(
+                   color: const Color(0xffebe6de),
+                   child: item.imageUrl == null
+                       ? const Center(child: Icon(Icons.checkroom, size: 45, color: Colors.black26))
+                       : Image.network(
+                           item.imageUrl!,
+                           fit: BoxFit.cover,
+                           width: double.infinity,
+                           errorBuilder: (_, _, _) => const Icon(Icons.checkroom, size: 45, color: Colors.black26),
+                         ),
+                 ),
+                 Positioned(top: 8, left: 8, child: Container(color: const Color(0xddf6f3ee), padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4), child: const Text('NUEVO', style: TextStyle(fontSize: 9, letterSpacing: 1)))),
+                 const Positioned(top: 6, right: 6, child: Icon(Icons.favorite_border, size: 19)),
+               ],
+             ),
+           ),
           const SizedBox(height: 8),
           Text(
             item.categoryName.toUpperCase(),

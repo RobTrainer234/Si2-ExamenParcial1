@@ -29,3 +29,8 @@ coverage/
 logs/
 tmp/
 *.swp
+
+# Runtime uploads and local design references are deployed separately.
+backend/media/
+stitch_fashionstore_platform_ui/
+docs/esquema_generado.sql
