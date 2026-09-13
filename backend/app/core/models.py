@@ -293,12 +293,14 @@ class Inventory(Base):
     __table_args__ = (
         UniqueConstraint("branch_id", "product_variant_id", name="uq_inventory_branch_variant"),
         CheckConstraint("stock_quantity >= 0", name="ck_inventory_stock_nonnegative"),
+        CheckConstraint("reserved_quantity >= 0 AND reserved_quantity <= stock_quantity", name="ck_inventory_reserved_valid"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     branch_id: Mapped[int] = mapped_column(ForeignKey("sucursales.id", ondelete="RESTRICT"), nullable=False, index=True)
     product_variant_id: Mapped[int] = mapped_column(ForeignKey("variantes_producto.id", ondelete="RESTRICT"), nullable=False, index=True)
     stock_quantity: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    reserved_quantity: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
     branch: Mapped[Branch] = relationship(back_populates="inventory")
     product_variant: Mapped[ProductVariant] = relationship(back_populates="inventory")
@@ -373,9 +375,11 @@ class Sale(Base):
     __table_args__ = (Index("ix_sales_customer_created", "customer_id", "created_at"),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
+    order_number: Mapped[str] = mapped_column(String(30), unique=True, nullable=False, index=True)
     customer_id: Mapped[int | None] = mapped_column(ForeignKey("usuarios.id", ondelete="RESTRICT"), index=True)
     branch_id: Mapped[int | None] = mapped_column(ForeignKey("sucursales.id", ondelete="RESTRICT"), index=True)
     cashier_id: Mapped[int | None] = mapped_column(ForeignKey("usuarios.id", ondelete="RESTRICT"), index=True)
+    reservation_id: Mapped[int | None] = mapped_column(ForeignKey("reservas.id", ondelete="RESTRICT"), index=True)
     channel: Mapped[str] = mapped_column(String(20), nullable=False)
     status: Mapped[str] = mapped_column(String(20), default="PENDING", nullable=False)
     subtotal: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
@@ -415,6 +419,7 @@ class Payment(Base):
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
+    idempotency_key: Mapped[str | None] = mapped_column(String(100), unique=True, index=True)
     sale_id: Mapped[int] = mapped_column(ForeignKey("ventas.id", ondelete="RESTRICT"), nullable=False, index=True)
     method: Mapped[str] = mapped_column(String(30), nullable=False)
     provider: Mapped[str | None] = mapped_column(String(50))
@@ -442,6 +447,8 @@ class InventoryMovement(Base):
     stock_before: Mapped[int] = mapped_column(Integer, nullable=False)
     stock_after: Mapped[int] = mapped_column(Integer, nullable=False)
     reason: Mapped[str | None] = mapped_column(String(255))
+    reference_type: Mapped[str | None] = mapped_column(String(50))
+    reference_id: Mapped[int | None] = mapped_column(Integer)
     created_by: Mapped[int | None] = mapped_column(ForeignKey("usuarios.id", ondelete="SET NULL"), index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 

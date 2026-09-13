@@ -1,4 +1,5 @@
 import os
+from datetime import UTC, datetime, timedelta
 
 os.environ["DATABASE_URL"] = "sqlite://"
 os.environ["JWT_SECRET"] = "test-secret"
@@ -9,7 +10,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
 from app.core.database import get_db  # noqa: E402
-from app.core.models import Base, Bitacora, Branch, Category, City, Color, Inventory, InventoryMovement, Permission, Product, ProductSupplier, ProductVariant, Role, RolePermission, Season, Size, Supplier, User  # noqa: E402
+from app.core.models import Base, Bitacora, Branch, Category, City, Color, Inventory, InventoryMovement, Permission, Product, ProductSupplier, ProductVariant, Role, RolePermission, Sale, Season, Size, Supplier, User  # noqa: E402
 from app.core.security import hash_password  # noqa: E402
 from app.main import app  # noqa: E402
 
@@ -806,3 +807,130 @@ def test_supply_offer_is_variant_scoped_and_supplier_can_update_own_offer() -> N
     assert updated.status_code == 200
     assert updated.json()["available_quantity"] == 20
     assert client.post(f"/api/v1/suppliers/{supplier_id}/offers", headers=admin_headers, json={"product_variant_id": variant_id, "season_id": season_id, "available_quantity": 4}).status_code == 409
+
+
+def test_customer_reservation_reserves_and_releases_inventory() -> None:
+    with Session(engine) as db:
+        client_role = db.scalar(select(Role).where(Role.code == "CLIENT"))
+        manager_role = Role(code="BRANCH_MANAGER", name="Encargado de sucursal")
+        reservation_read = Permission(code="reservations.read", name="Consultar reservas propias")
+        reservation_manage = Permission(code="reservations.manage", name="Gestionar reservas de sucursal")
+        db.add_all([manager_role, reservation_read, reservation_manage])
+        db.flush()
+        db.add_all([
+            RolePermission(role_id=client_role.id, permission_id=reservation_read.id),
+            RolePermission(role_id=manager_role.id, permission_id=reservation_manage.id),
+            RolePermission(role_id=manager_role.id, permission_id=reservation_read.id),
+        ])
+        category = Category(name="Reservas Category")
+        size = Size(name="Reserva M")
+        color = Color(name="Reserva Azul", hex_code="#0000AA")
+        city = City(name="Reserva City")
+        db.add_all([category, size, color, city])
+        db.flush()
+        branch = Branch(city_id=city.id, name="Reserva Branch", address="Reserva 1", phone="70000040")
+        product = Product(category_id=category.id, code="RES-001", name="Producto Reservable", slug="producto-reservable", price=125)
+        db.add_all([branch, product])
+        db.flush()
+        variant = ProductVariant(product_id=product.id, size_id=size.id, color_id=color.id, sku="RES-001-M-AZUL")
+        db.add(variant)
+        db.flush()
+        inventory = Inventory(branch_id=branch.id, product_variant_id=variant.id, stock_quantity=3)
+        customer = User(role=client_role, first_name="Reserva", last_name="Cliente", email="reservation-client@example.com", phone="70000041", password_hash=hash_password("Client123!"))
+        manager = User(role=manager_role, first_name="Reserva", last_name="Manager", email="reservation-manager@example.com", phone="70000042", password_hash=hash_password("Manager123!"))
+        manager.branches.append(branch)
+        db.add_all([inventory, customer, manager])
+        db.commit()
+        branch_id, variant_id, inventory_id = branch.id, variant.id, inventory.id
+
+    customer_tokens = client.post("/api/v1/auth/login", json={"email": "reservation-client@example.com", "password": "Client123!"}).json()
+    customer_headers = {"Authorization": f"Bearer {customer_tokens['access_token']}"}
+    scheduled_for = (datetime.now(UTC) + timedelta(days=1)).isoformat()
+    created = client.post("/api/v1/reservations", headers=customer_headers, json={"branch_id": branch_id, "scheduled_for": scheduled_for, "items": [{"product_variant_id": variant_id, "quantity": 2}]})
+    assert created.status_code == 201
+    reservation_id = created.json()["id"]
+    assert created.json()["status"] == "PENDING"
+
+    with Session(engine) as db:
+        saved_inventory = db.get(Inventory, inventory_id)
+        assert saved_inventory.reserved_quantity == 2
+        assert db.scalar(select(InventoryMovement).where(InventoryMovement.reference_id == reservation_id, InventoryMovement.movement_type == "RESERVE")) is not None
+
+    manager_tokens = client.post("/api/v1/auth/login", json={"email": "reservation-manager@example.com", "password": "Manager123!"}).json()
+    manager_headers = {"Authorization": f"Bearer {manager_tokens['access_token']}"}
+    assert client.patch(f"/api/v1/reservations/{reservation_id}/status", headers=manager_headers, json={"status": "PREPARING"}).status_code == 200
+    assert client.patch(f"/api/v1/reservations/{reservation_id}/status", headers=manager_headers, json={"status": "READY"}).status_code == 200
+    assert client.patch(f"/api/v1/reservations/{reservation_id}/cancel", headers=customer_headers).status_code == 200
+
+    with Session(engine) as db:
+        saved_inventory = db.get(Inventory, inventory_id)
+        assert saved_inventory.reserved_quantity == 0
+        assert db.scalar(select(InventoryMovement).where(InventoryMovement.reference_id == reservation_id, InventoryMovement.movement_type == "RELEASE")) is not None
+
+
+def test_cart_physical_and_digital_sales_update_inventory() -> None:
+    with Session(engine) as db:
+        client_role = db.scalar(select(Role).where(Role.code == "CLIENT"))
+        cashier_role = Role(code="CASHIER", name="Cajero")
+        cart_permission = Permission(code="cart.manage", name="Gestionar carrito")
+        electronic_permission = Permission(code="payments.electronic", name="Pagos electronicos")
+        sales_read = Permission(code="sales.read", name="Consultar ventas")
+        sales_create = Permission(code="sales.create", name="Crear ventas")
+        cash_permission = Permission(code="payments.cash", name="Pagos en caja")
+        db.add_all([cashier_role, cart_permission, electronic_permission, sales_read, sales_create, cash_permission])
+        db.flush()
+        db.add_all([
+            RolePermission(role_id=client_role.id, permission_id=cart_permission.id),
+            RolePermission(role_id=client_role.id, permission_id=electronic_permission.id),
+            RolePermission(role_id=client_role.id, permission_id=sales_read.id),
+            RolePermission(role_id=cashier_role.id, permission_id=sales_read.id),
+            RolePermission(role_id=cashier_role.id, permission_id=sales_create.id),
+            RolePermission(role_id=cashier_role.id, permission_id=cash_permission.id),
+        ])
+        category = Category(name="Commerce Category")
+        size = Size(name="Commerce M")
+        color = Color(name="Commerce Black", hex_code="#111111")
+        city = City(name="Commerce City")
+        db.add_all([category, size, color, city])
+        db.flush()
+        branch = Branch(city_id=city.id, name="Commerce Branch", address="Commerce 1", phone="70000050")
+        product = Product(category_id=category.id, code="COM-001", name="Producto Comercial", slug="producto-comercial", price=100)
+        db.add_all([branch, product])
+        db.flush()
+        variant = ProductVariant(product_id=product.id, size_id=size.id, color_id=color.id, sku="COM-001-M-BLACK")
+        db.add(variant)
+        db.flush()
+        db.add(Inventory(branch_id=branch.id, product_variant_id=variant.id, stock_quantity=5))
+        customer = User(role=client_role, first_name="Commerce", last_name="Client", email="commerce-client@example.com", phone="70000051", password_hash=hash_password("Client123!"))
+        cashier = User(role=cashier_role, first_name="Commerce", last_name="Cashier", email="commerce-cashier@example.com", phone="70000052", password_hash=hash_password("Cashier123!"))
+        cashier.branches.append(branch)
+        db.add_all([customer, cashier])
+        db.commit()
+        branch_id, variant_id = branch.id, variant.id
+
+    customer_tokens = client.post("/api/v1/auth/login", json={"email": "commerce-client@example.com", "password": "Client123!"}).json()
+    customer_headers = {"Authorization": f"Bearer {customer_tokens['access_token']}"}
+    cart_response = client.post("/api/v1/cart/items", headers=customer_headers, json={"product_variant_id": variant_id, "quantity": 2})
+    assert cart_response.status_code == 200
+    assert cart_response.json()["subtotal"] == "200.00"
+
+    cashier_tokens = client.post("/api/v1/auth/login", json={"email": "commerce-cashier@example.com", "password": "Cashier123!"}).json()
+    cashier_headers = {"Authorization": f"Bearer {cashier_tokens['access_token']}"}
+    physical = client.post("/api/v1/sales/physical", headers=cashier_headers, json={"branch_id": branch_id, "items": [{"product_variant_id": variant_id, "quantity": 1}]})
+    assert physical.status_code == 201
+    physical_id = physical.json()["id"]
+    paid = client.post(f"/api/v1/sales/{physical_id}/cash-payment", headers=cashier_headers, json={"method": "CASH", "amount": "100"})
+    assert paid.status_code == 200
+    assert paid.json()["status"] == "CONFIRMED"
+
+    digital = client.post("/api/v1/purchases/digital", headers=customer_headers, json={"branch_id": branch_id})
+    assert digital.status_code == 201
+    sale_id = digital.json()["id"]
+    payment = client.post("/api/v1/payments/electronic", headers=customer_headers, json={"sale_id": sale_id, "idempotency_key": "commerce-payment-001", "method": "CARD"})
+    assert payment.status_code == 201
+    approved = client.post("/api/v1/payments/electronic/notification", json={"transaction_reference": payment.json()["transaction_reference"], "status": "APPROVED", "amount": "200"})
+    assert approved.status_code == 200
+    with Session(engine) as db:
+        inventory = db.scalar(select(Inventory).where(Inventory.branch_id == branch_id, Inventory.product_variant_id == variant_id))
+        assert inventory.stock_quantity == 2
+        assert db.scalar(select(Sale).where(Sale.id == sale_id)).status == "CONFIRMED"

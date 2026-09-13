@@ -52,8 +52,8 @@ def _apply_filters(statement, count_statement, query: str | None, category_id: i
             statement = statement.where(ProductVariant.color_id == color_id)
             count_statement = count_statement.where(ProductVariant.color_id == color_id)
         if branch_id is not None:
-            statement = statement.join(Inventory, Inventory.product_variant_id == ProductVariant.id).join(Branch, Inventory.branch_id == Branch.id).join(City, Branch.city_id == City.id).where(Inventory.stock_quantity > 0, Branch.id == branch_id, Branch.is_active.is_(True), City.is_active.is_(True))
-            count_statement = count_statement.join(Inventory, Inventory.product_variant_id == ProductVariant.id).join(Branch, Inventory.branch_id == Branch.id).join(City, Branch.city_id == City.id).where(Inventory.stock_quantity > 0, Branch.id == branch_id, Branch.is_active.is_(True), City.is_active.is_(True))
+            statement = statement.join(Inventory, Inventory.product_variant_id == ProductVariant.id).join(Branch, Inventory.branch_id == Branch.id).join(City, Branch.city_id == City.id).where(Inventory.stock_quantity - Inventory.reserved_quantity > 0, Branch.id == branch_id, Branch.is_active.is_(True), City.is_active.is_(True))
+            count_statement = count_statement.join(Inventory, Inventory.product_variant_id == ProductVariant.id).join(Branch, Inventory.branch_id == Branch.id).join(City, Branch.city_id == City.id).where(Inventory.stock_quantity - Inventory.reserved_quantity > 0, Branch.id == branch_id, Branch.is_active.is_(True), City.is_active.is_(True))
     return statement, count_statement
 
 
@@ -137,7 +137,7 @@ def serialize_detail(product: Product) -> dict[str, object]:
         "description": product.description,
         "price": product.price,
         "images": [{"image_url": image.image_url, "is_primary": image.is_primary, "sort_order": image.sort_order} for image in sorted(product.images, key=lambda value: value.sort_order)],
-        "variants": [{"id": variant.id, "size_id": variant.size_id, "size_name": variant.size.name, "size_type": variant.size.size_type, "sort_order": variant.size.sort_order, "color_id": variant.color_id, "color_name": variant.color.name, "sku": variant.sku, "stock_total": sum(item.stock_quantity for item in variant.inventory), "available": any(item.stock_quantity > 0 for item in variant.inventory)} for variant in sorted(product.variants, key=lambda value: (value.size.sort_order, value.color.name, value.id)) if variant.is_active],
+        "variants": [{"id": variant.id, "size_id": variant.size_id, "size_name": variant.size.name, "size_type": variant.size.size_type, "sort_order": variant.size.sort_order, "color_id": variant.color_id, "color_name": variant.color.name, "sku": variant.sku, "stock_total": sum(item.stock_quantity - item.reserved_quantity for item in variant.inventory), "available": any(item.stock_quantity - item.reserved_quantity > 0 for item in variant.inventory)} for variant in sorted(product.variants, key=lambda value: (value.size.sort_order, value.color.name, value.id)) if variant.is_active],
     }
 
 
@@ -161,4 +161,4 @@ def availability(db: Session, product_id: int, size_id: int, color_id: int) -> l
     )
     if db.scalar(_base_product_statement().with_only_columns(Product.id).where(Product.id == product_id)) is None:
         raise _not_found()
-    return [{"branch_id": item.branch_id, "branch_name": branch.name, "city_name": city.name, "address": branch.address, "available": item.stock_quantity > 0, "stock": item.stock_quantity} for item, branch, city in db.execute(statement).all()]
+    return [{"branch_id": item.branch_id, "branch_name": branch.name, "city_name": city.name, "address": branch.address, "available": item.stock_quantity - item.reserved_quantity > 0, "stock": item.stock_quantity - item.reserved_quantity} for item, branch, city in db.execute(statement).all()]

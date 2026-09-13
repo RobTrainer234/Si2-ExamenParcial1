@@ -82,12 +82,14 @@ class CatalogDetail extends CatalogItem {
 
 class AvailabilityItem {
   const AvailabilityItem({
+    required this.branchId,
     required this.branchName,
     required this.cityName,
     required this.address,
     required this.available,
     required this.stock,
   });
+  final int branchId;
   final String branchName;
   final String cityName;
   final String address;
@@ -96,6 +98,7 @@ class AvailabilityItem {
 
   factory AvailabilityItem.fromJson(Map<String, dynamic> json) =>
       AvailabilityItem(
+        branchId: json['branch_id'] as int,
         branchName: json['branch_name'] as String,
         cityName: json['city_name'] as String,
         address: json['address'] as String,

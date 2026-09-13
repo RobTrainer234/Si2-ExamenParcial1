@@ -5,7 +5,7 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, joinedload
 
-from app.core.models import Collection, Season
+from app.core.models import Collection, Product, Season
 from app.modules.seasons.schemas import CollectionCreateRequest, CollectionUpdateRequest, SeasonCreateRequest, SeasonUpdateRequest
 
 
@@ -68,6 +68,10 @@ def update_season(db: Session, season: Season, data: SeasonUpdateRequest) -> Sea
     values = data.model_dump(exclude_unset=True)
     if values.get("name") and db.scalar(select(Season.id).where(Season.name == values["name"], Season.id != season.id)):
         raise _conflict("La temporada ya está registrada.")
+    starts_on = values.get("starts_on", season.starts_on)
+    ends_on = values.get("ends_on", season.ends_on)
+    if starts_on and ends_on and ends_on < starts_on:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail={"code": "INVALID_SEASON_DATES", "message": "La fecha de finalización no puede ser anterior a la fecha de inicio."})
     for field, value in values.items():
         setattr(season, field, value)
     db.flush()
@@ -75,6 +79,8 @@ def update_season(db: Session, season: Season, data: SeasonUpdateRequest) -> Sea
 
 
 def set_season_active(db: Session, season: Season, active: bool) -> Season:
+    if not active and db.scalar(select(Product.id).where(Product.season_id == season.id, Product.is_active.is_(True))) is not None:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail={"code": "SEASON_IN_USE", "message": "No se puede desactivar una temporada con productos activos."})
     season.is_active = active
     db.flush()
     return season
@@ -133,6 +139,8 @@ def update_collection(db: Session, collection: Collection, data: CollectionUpdat
 
 
 def set_collection_active(db: Session, collection: Collection, active: bool) -> Collection:
+    if not active and db.scalar(select(Product.id).where(Product.collection_id == collection.id, Product.is_active.is_(True))) is not None:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail={"code": "COLLECTION_IN_USE", "message": "No se puede desactivar una colección con productos activos."})
     collection.is_active = active
     db.flush()
     return get_collection(db, collection.id)

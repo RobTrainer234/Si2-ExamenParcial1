@@ -12,6 +12,8 @@ from app.modules.catalog_masters.router import router as catalog_masters_router
 from app.modules.catalog.router import router as catalog_router
 from app.modules.locations.router import router as locations_router
 from app.modules.inventory.router import router as inventory_router
+from app.modules.reservations.router import router as reservations_router
+from app.modules.commerce.router import router as commerce_router
 from app.modules.products.router import router as products_router
 from app.modules.suppliers.router import router as suppliers_router
 from app.modules.seasons.router import router as seasons_router
@@ -48,5 +50,7 @@ app.include_router(suppliers_router, prefix=settings.api_v1_prefix)
 app.include_router(seasons_router, prefix=settings.api_v1_prefix)
 app.include_router(products_router, prefix=settings.api_v1_prefix)
 app.include_router(inventory_router, prefix=settings.api_v1_prefix)
+app.include_router(reservations_router, prefix=settings.api_v1_prefix)
+app.include_router(commerce_router, prefix=settings.api_v1_prefix)
 app.include_router(catalog_router, prefix=settings.api_v1_prefix)
 logger.info("FashionStore API started in %s environment", settings.app_env)

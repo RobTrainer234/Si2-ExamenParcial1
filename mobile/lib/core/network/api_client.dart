@@ -29,6 +29,22 @@ class ApiClient {
     );
   }
 
+  Future<dynamic> patch(String path, {Object? body}) async {
+    final uri = Uri.parse('${AppConfig.apiBaseUrl}$path');
+    return _send(
+      () => _client.patch(
+        uri,
+        headers: _headers,
+        body: body == null ? null : jsonEncode(body),
+      ),
+    );
+  }
+
+  Future<dynamic> delete(String path) async {
+    final uri = Uri.parse('${AppConfig.apiBaseUrl}$path');
+    return _send(() => _client.delete(uri, headers: _headers));
+  }
+
   Map<String, String> get _headers => {
     'Content-Type': 'application/json',
     if (accessToken != null) 'Authorization': 'Bearer $accessToken',

@@ -26,13 +26,20 @@ PERMISSIONS = {
     "products.publish": "Publicar productos",
     "inventory.read": "Consultar inventario",
     "inventory.adjust": "Ajustar inventario",
+    "reservations.read": "Consultar reservas propias",
+    "reservations.manage": "Gestionar reservas de sucursal",
+    "cart.manage": "Gestionar carrito propio",
+    "sales.read": "Consultar ventas",
+    "sales.create": "Registrar ventas",
+    "payments.cash": "Procesar pagos en caja",
+    "payments.electronic": "Procesar pagos electronicos",
 }
 
 ROLE_PERMISSIONS = {
     "ADMIN": set(PERMISSIONS),
-    "CLIENT": {"catalog.read", "catalog.availability"},
-    "BRANCH_MANAGER": {"catalog.read", "catalog.availability", "inventory.read", "inventory.adjust"},
-    "CASHIER": {"catalog.read", "catalog.availability", "inventory.read"},
+    "CLIENT": {"catalog.read", "catalog.availability", "reservations.read", "cart.manage", "sales.read", "payments.electronic"},
+    "BRANCH_MANAGER": {"catalog.read", "catalog.availability", "inventory.read", "inventory.adjust", "reservations.read", "reservations.manage", "sales.read"},
+    "CASHIER": {"catalog.read", "catalog.availability", "inventory.read", "sales.read", "sales.create", "payments.cash"},
     "SUPPLIER": {"catalog.read", "suppliers.portal"},
 }
 

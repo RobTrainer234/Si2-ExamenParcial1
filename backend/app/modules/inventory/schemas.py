@@ -1,3 +1,6 @@
+from datetime import datetime
+from typing import Literal
+
 from pydantic import BaseModel, Field
 
 
@@ -26,11 +29,42 @@ class InventoryResponse(BaseModel):
     color_id: int
     color_name: str
     stock_quantity: int
+    reserved_quantity: int
+    available_quantity: int
     available: bool
 
 
 class InventoryPage(BaseModel):
     items: list[InventoryResponse]
+    page: int
+    page_size: int
+    total: int
+    total_pages: int
+
+
+class InventoryMovementCreateRequest(BaseModel):
+    inventory_id: int = Field(gt=0)
+    movement_type: Literal["IN", "OUT", "RETURN"]
+    quantity: int = Field(gt=0)
+    reason: str = Field(min_length=2, max_length=255)
+
+
+class InventoryMovementResponse(BaseModel):
+    id: int
+    inventory_id: int
+    movement_type: str
+    quantity: int
+    stock_before: int
+    stock_after: int
+    reason: str | None
+    reference_type: str | None
+    reference_id: int | None
+    created_by: int | None
+    created_at: datetime
+
+
+class InventoryMovementPage(BaseModel):
+    items: list[InventoryMovementResponse]
     page: int
     page_size: int
     total: int

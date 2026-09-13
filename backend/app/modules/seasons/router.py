@@ -3,6 +3,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Query, status
 
 from app.core.database import get_db
+from app.core.audit import record_audit
 from app.core.models import User
 from app.modules.auth.dependencies import require_permission
 from app.modules.seasons import service
@@ -18,8 +19,9 @@ def list_seasons(_: AdminUser, db=Depends(get_db), page: int = Query(1, ge=1), p
 
 
 @router.post("/seasons", response_model=SeasonResponse, status_code=status.HTTP_201_CREATED)
-def create_season(data: SeasonCreateRequest, _: AdminUser, db=Depends(get_db)):
+def create_season(data: SeasonCreateRequest, current_user: AdminUser, db=Depends(get_db)):
     season = service.create_season(db, data)
+    record_audit(db, current_user, "CREATE", "season", season.id, "Temporada creada.", new_values={"name": season.name})
     db.commit()
     return service.serialize_season(season)
 
@@ -30,18 +32,20 @@ def get_season(season_id: int, _: AdminUser, db=Depends(get_db)):
 
 
 @router.patch("/seasons/{season_id}", response_model=SeasonResponse)
-def update_season(season_id: int, data: SeasonUpdateRequest, _: AdminUser, db=Depends(get_db)):
+def update_season(season_id: int, data: SeasonUpdateRequest, current_user: AdminUser, db=Depends(get_db)):
     season = service.update_season(db, service.get_season(db, season_id), data)
+    record_audit(db, current_user, "UPDATE", "season", season.id, "Temporada actualizada.", new_values=data.model_dump(exclude_unset=True))
     db.commit()
     return service.serialize_season(season)
 
 
 @router.patch("/seasons/{season_id}/{action}", response_model=SeasonResponse)
-def season_status(season_id: int, action: str, _: AdminUser, db=Depends(get_db)):
+def season_status(season_id: int, action: str, current_user: AdminUser, db=Depends(get_db)):
     if action not in {"activate", "deactivate"}:
         from fastapi import HTTPException
         raise HTTPException(status_code=404, detail="Operación no encontrada")
     season = service.set_season_active(db, service.get_season(db, season_id), action == "activate")
+    record_audit(db, current_user, "ACTIVATE" if action == "activate" else "DEACTIVATE", "season", season.id, "Estado de temporada actualizado.", new_values={"is_active": season.is_active})
     db.commit()
     return service.serialize_season(season)
 
@@ -52,8 +56,9 @@ def list_collections(_: AdminUser, db=Depends(get_db), page: int = Query(1, ge=1
 
 
 @router.post("/collections", response_model=CollectionResponse, status_code=status.HTTP_201_CREATED)
-def create_collection(data: CollectionCreateRequest, _: AdminUser, db=Depends(get_db)):
+def create_collection(data: CollectionCreateRequest, current_user: AdminUser, db=Depends(get_db)):
     collection = service.create_collection(db, data)
+    record_audit(db, current_user, "CREATE", "collection", collection.id, "Colección creada.", new_values={"name": collection.name, "season_id": collection.season_id})
     db.commit()
     return service.serialize_collection(collection)
 
@@ -64,17 +69,19 @@ def get_collection(collection_id: int, _: AdminUser, db=Depends(get_db)):
 
 
 @router.patch("/collections/{collection_id}", response_model=CollectionResponse)
-def update_collection(collection_id: int, data: CollectionUpdateRequest, _: AdminUser, db=Depends(get_db)):
+def update_collection(collection_id: int, data: CollectionUpdateRequest, current_user: AdminUser, db=Depends(get_db)):
     collection = service.update_collection(db, service.get_collection(db, collection_id), data)
+    record_audit(db, current_user, "UPDATE", "collection", collection.id, "Colección actualizada.", new_values=data.model_dump(exclude_unset=True))
     db.commit()
     return service.serialize_collection(collection)
 
 
 @router.patch("/collections/{collection_id}/{action}", response_model=CollectionResponse)
-def collection_status(collection_id: int, action: str, _: AdminUser, db=Depends(get_db)):
+def collection_status(collection_id: int, action: str, current_user: AdminUser, db=Depends(get_db)):
     if action not in {"activate", "deactivate"}:
         from fastapi import HTTPException
         raise HTTPException(status_code=404, detail="Operación no encontrada")
     collection = service.set_collection_active(db, service.get_collection(db, collection_id), action == "activate")
+    record_audit(db, current_user, "ACTIVATE" if action == "activate" else "DEACTIVATE", "collection", collection.id, "Estado de colección actualizado.", new_values={"is_active": collection.is_active})
     db.commit()
     return service.serialize_collection(collection)

@@ -67,6 +67,9 @@ El seed crea los roles base y el administrador definido por
 El seed es idempotente: no duplica roles ni el administrador existente. No
 incluye datos ficticios de productos, proveedores o inventario.
 
+La implementacion del Ciclo 2 se documenta en `docs/cycle-2.md`. El bloque
+actual cubre inventario, reservas, atencion de reservas y temporadas/colecciones.
+
 ## Desarrollo fuera de Docker
 
 Backend:

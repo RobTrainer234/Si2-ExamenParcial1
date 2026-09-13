@@ -8,7 +8,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
 from app.core.models import Category, Collection, Color, Product, ProductImage, ProductSupplier, ProductVariant, Season, Size, Supplier
-from app.modules.products.schemas import ImageInput, ProductCreateRequest, ProductUpdateRequest, SizeSystem, VariantInput
+from app.modules.products.schemas import ImageInput, ProductCreateRequest, ProductUpdateRequest, VariantInput
 
 
 def _error(code: str, message: str, http_status: int) -> HTTPException:

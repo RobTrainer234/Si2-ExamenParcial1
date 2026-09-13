@@ -1,9 +1,11 @@
-import { Component, inject } from '@angular/core';
+import { ChangeDetectorRef, Component, inject } from '@angular/core';
 import { CurrencyPipe } from '@angular/common';
 import { ActivatedRoute, RouterLink } from '@angular/router';
+import { finalize } from 'rxjs';
 
 import { AvailabilityItem, CatalogDetail, CatalogVariant } from '../../core/models/api.models';
 import { CatalogService } from '../../core/catalog/catalog.service';
+import { CommerceService } from '../../core/commerce/commerce.service';
 
 @Component({
   standalone: true,
@@ -41,7 +43,8 @@ import { CatalogService } from '../../core/catalog/catalog.service';
             <div class="selection-heading"><h3>Talla</h3><span>{{ selectedVariant?.available ? (selectedVariant?.stock_total || 0) + ' disponibles' : 'Agotada' }}</span></div>
             <div class="choice-row">@for (variant of sizeOptions; track variant.size_id) { <button type="button" [class.selected]="selectedVariant?.size_id === variant.size_id" [class.unavailable]="!variant.available" [disabled]="!variant.available" (click)="selectSize(variant.size_id)">{{ variant.size_name }}</button> }</div>
           </div>
-          <button class="button button-dark availability-button" [disabled]="!selectedVariant || loadingAvailability" (click)="checkAvailability()">{{ loadingAvailability ? 'Consultando...' : 'Ver disponibilidad en tiendas' }}</button>
+           <button class="button button-dark availability-button" [disabled]="!selectedVariant || loadingAvailability" (click)="checkAvailability()">{{ loadingAvailability ? 'Consultando...' : 'Ver disponibilidad en tiendas' }}</button>
+           <button class="button button-light availability-button" [disabled]="!selectedVariant || !selectedVariant.available" (click)="addToCart()">Agregar al carrito</button>
           @if (availability.length > 0) { <div class="availability-list"><h3>Disponibilidad en tiendas</h3>@for (branch of availability; track branch.branch_id) { <div class="branch-row"><div><strong>{{ branch.branch_name }}</strong><small>{{ branch.city_name }} · {{ branch.address }}</small></div><span [class.in-stock]="branch.available">{{ branch.available ? branch.stock + ' disponibles' : 'Agotado' }}</span></div> }</div> }
           @if (checked && availability.length === 0) { <p class="muted">No hay existencias registradas para esta combinación.</p> }
           <details class="product-accordion detail-accordion"><summary>Envíos y devoluciones <span class="material-symbols-outlined">add</span></summary><p>Consulta la disponibilidad en tu sucursal más cercana antes de visitar la tienda.</p></details>
@@ -53,6 +56,8 @@ import { CatalogService } from '../../core/catalog/catalog.service';
 export class ProductDetailComponent {
   private readonly route = inject(ActivatedRoute);
   private readonly catalog = inject(CatalogService);
+  private readonly commerce = inject(CommerceService);
+  private readonly changeDetector = inject(ChangeDetectorRef);
   product: CatalogDetail | null = null;
   selectedVariant: CatalogVariant | null = null;
   availability: AvailabilityItem[] = [];
@@ -66,7 +71,7 @@ export class ProductDetailComponent {
 
   constructor() {
     const id = Number(this.route.snapshot.paramMap.get('id'));
-    this.catalog.detail(id).subscribe({ next: (product) => { this.product = product; this.selectedImage = product.images.find((image) => image.is_primary)?.image_url || product.images[0]?.image_url || ''; this.selectedVariant = product.variants.find((variant) => variant.available) || product.variants[0] || null; this.selectedColorId = this.selectedVariant?.color_id || 0; this.loading = false; }, error: () => { this.error = true; this.loading = false; } });
+    this.catalog.detail(id).pipe(finalize(() => { this.loading = false; this.changeDetector.detectChanges(); })).subscribe({ next: (product) => { this.product = product; this.selectedImage = product.images.find((image) => image.is_primary)?.image_url || product.images[0]?.image_url || ''; this.selectedVariant = product.variants.find((variant) => variant.available) || product.variants[0] || null; this.selectedColorId = this.selectedVariant?.color_id || 0; }, error: () => { this.error = true; } });
   }
 
   get selectedImageIndex(): number { return this.product?.images.findIndex((image) => image.image_url === this.selectedImage) ?? 0; }
@@ -85,5 +90,10 @@ export class ProductDetailComponent {
     if (!this.product || !this.selectedVariant) return;
     this.loadingAvailability = true;
     this.catalog.availability(this.product.id, this.selectedVariant.size_id, this.selectedVariant.color_id).subscribe({ next: (items) => { this.availability = items; this.checked = true; this.loadingAvailability = false; }, error: () => { this.availability = []; this.checked = true; this.loadingAvailability = false; } });
+  }
+
+  addToCart(): void {
+    if (!this.selectedVariant) return;
+    this.commerce.addToCart(this.selectedVariant.id).subscribe({ next: () => this.error = false, error: () => this.error = true });
   }
 }

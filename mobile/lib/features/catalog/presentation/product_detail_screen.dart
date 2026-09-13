@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/providers.dart';
 import '../data/catalog_models.dart';
+import '../../cart/presentation/cart_screen.dart';
 
 class ProductDetailScreen extends ConsumerStatefulWidget {
   const ProductDetailScreen({required this.productId, super.key});
@@ -83,7 +84,7 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
       );
     }
     return Scaffold(
-      appBar: AppBar(title: const Text('FASHIONSTORE', style: TextStyle(fontSize: 16, letterSpacing: 2, fontWeight: FontWeight.w700)), actions: [IconButton(onPressed: () {}, icon: const Icon(Icons.favorite_border))]),
+      appBar: AppBar(title: const Text('FASHIONSTORE', style: TextStyle(fontSize: 16, letterSpacing: 2, fontWeight: FontWeight.w700)), actions: [IconButton(onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const CartScreen())), icon: const Icon(Icons.shopping_bag_outlined))]),
       body: ListView(
         padding: const EdgeInsets.all(20),
         children: [
@@ -143,7 +144,7 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
             ],
           ),
           const SizedBox(height: 22),
-          SizedBox(
+           SizedBox(
             width: double.infinity,
             child: FilledButton.icon(
               onPressed: selected == null || checking
@@ -152,22 +153,31 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
               icon: const Icon(Icons.storefront_outlined),
               label: Text(checking ? 'Consultando...' : 'Ver disponibilidad'),
             ),
-          ),
-          const SizedBox(height: 18),
+           ),
+           const SizedBox(height: 10),
+           SizedBox(
+             width: double.infinity,
+             child: OutlinedButton.icon(
+               onPressed: selected == null ? null : addToCart,
+               icon: const Icon(Icons.add_shopping_cart),
+               label: const Text('Agregar al carrito'),
+             ),
+           ),
+           const SizedBox(height: 18),
           if (checked && availability.isEmpty)
             const Text('No hay existencias registradas para esta combinación.'),
-          for (final branch in availability)
-            ListTile(
+           for (final branch in availability)
+             ListTile(
               contentPadding: EdgeInsets.zero,
               title: Text(branch.branchName),
               subtitle: Text('${branch.cityName} · ${branch.address}'),
-              trailing: Text(
-                branch.available ? '${branch.stock} disponibles' : 'Agotado',
-                style: TextStyle(
-                  color: branch.available ? Colors.green.shade700 : Colors.grey,
-                ),
-              ),
-            ),
+               trailing: branch.available
+                   ? FilledButton(
+                       onPressed: () => reserve(branch),
+                       child: const Text('Reservar'),
+                     )
+                   : Text('Agotado', style: TextStyle(color: Colors.grey)),
+             ),
         ],
       ),
     );
@@ -180,4 +190,38 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
       child: Icon(Icons.checkroom, size: 60, color: Colors.black26),
     ),
   );
+
+  Future<void> reserve(AvailabilityItem branch) async {
+    final current = selected;
+    if (current == null) return;
+    final date = await showDatePicker(
+      context: context,
+      firstDate: DateTime.now(),
+      lastDate: DateTime.now().add(const Duration(days: 90)),
+      initialDate: DateTime.now().add(const Duration(days: 1)),
+    );
+    if (date == null || !mounted) return;
+    final scheduled = DateTime(date.year, date.month, date.day, 10);
+    try {
+      await ref.read(reservationRepositoryProvider).create(
+        branchId: branch.branchId,
+        variantId: current.id,
+        scheduledFor: scheduled,
+      );
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Reserva creada correctamente.')));
+    } catch (_) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No se pudo crear la reserva.')));
+    }
+  }
+
+  Future<void> addToCart() async {
+    final current = selected;
+    if (current == null) return;
+    try {
+      await ref.read(cartRepositoryProvider).add(current.id);
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Producto agregado al carrito.')));
+    } catch (_) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No se pudo agregar al carrito.')));
+    }
+  }
 }

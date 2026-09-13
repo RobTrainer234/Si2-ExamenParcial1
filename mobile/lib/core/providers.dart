@@ -6,6 +6,8 @@ import 'storage/session_storage.dart';
 import '../features/auth/data/auth_repository.dart';
 import '../features/auth/application/auth_controller.dart';
 import '../features/catalog/data/catalog_repository.dart';
+import '../features/reservations/data/reservation_repository.dart';
+import '../features/cart/data/cart_repository.dart';
 
 final apiClientProvider = Provider<ApiClient>((ref) => ApiClient());
 final sessionStorageProvider = Provider<SessionStorage>(
@@ -22,4 +24,10 @@ final authControllerProvider = ChangeNotifierProvider<AuthController>(
 );
 final catalogRepositoryProvider = Provider<CatalogRepository>(
   (ref) => CatalogRepository(ref.watch(apiClientProvider)),
+);
+final reservationRepositoryProvider = Provider<ReservationRepository>(
+  (ref) => ReservationRepository(ref.watch(apiClientProvider)),
+);
+final cartRepositoryProvider = Provider<CartRepository>(
+  (ref) => CartRepository(ref.watch(apiClientProvider)),
 );

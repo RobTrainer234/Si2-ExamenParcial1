@@ -3,7 +3,7 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
 
 import { appConfig } from '../config/app-config';
-import { AdminUser, Branch, Category, City, Collection, Color, ImageInput, InventoryRow, Page, ProductDetail, ProductSummary, Season, Size, Supplier, SupplyOffer } from '../models/admin.models';
+import { AdminUser, Branch, Category, City, Collection, Color, ImageInput, InventoryRow, Page, ProductDetail, ProductSummary, Reservation, Season, Size, Supplier, SupplyOffer } from '../models/admin.models';
 
 @Injectable({ providedIn: 'root' })
 export class AdminService {
@@ -72,6 +72,8 @@ export class AdminService {
   inventoryAll(branchId?: number): Observable<Page<InventoryRow>> { let params = new HttpParams().set('page', 1).set('page_size', 100); if (branchId) params = params.set('branch_id', branchId); return this.http.get<Page<InventoryRow>>(`${this.base}/inventory`, { params }); }
   createInventory(data: unknown): Observable<InventoryRow> { return this.http.post<InventoryRow>(`${this.base}/inventory`, data); }
   updateInventory(id: number, stock_quantity: number): Observable<InventoryRow> { return this.http.patch<InventoryRow>(`${this.base}/inventory/${id}`, { stock_quantity }); }
+  reservations(branchId: number, status?: string): Observable<Page<Reservation>> { let params = new HttpParams().set('page', 1).set('page_size', 100).set('branch_id', branchId); if (status) params = params.set('status', status); return this.http.get<Page<Reservation>>(`${this.base}/reservations/branch`, { params }); }
+  updateReservationStatus(id: number, reservationStatus: string): Observable<Reservation> { return this.http.patch<Reservation>(`${this.base}/reservations/${id}/status`, { status: reservationStatus }); }
   addVariant(productId: number, data: unknown): Observable<ProductDetail> { return this.http.post<ProductDetail>(`${this.base}/products/${productId}/variants`, data); }
   addVariantsBulk(productId: number, variants: unknown[]): Observable<ProductDetail> { return this.http.post<ProductDetail>(`${this.base}/products/${productId}/variants/bulk`, { variants }); }
   addImage(productId: number, data: ImageInput): Observable<ProductDetail> { return this.http.post<ProductDetail>(`${this.base}/products/${productId}/images`, data); }
