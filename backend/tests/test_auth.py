@@ -1,5 +1,6 @@
 import os
 from datetime import UTC, datetime, timedelta
+from decimal import Decimal
 
 os.environ["DATABASE_URL"] = "sqlite://"
 os.environ["JWT_SECRET"] = "test-secret"
@@ -10,7 +11,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
 from app.core.database import get_db  # noqa: E402
-from app.core.models import Base, Bitacora, Branch, Category, City, Color, Inventory, InventoryMovement, Permission, Product, ProductSupplier, ProductVariant, Role, RolePermission, Sale, Season, Size, Supplier, User  # noqa: E402
+from app.core.models import Base, AIRecommendation, Bitacora, Branch, Category, City, Color, Inventory, InventoryMovement, Permission, Product, ProductSupplier, ProductVariant, Promotion, Reservation, Role, RolePermission, Sale, Season, Size, Supplier, User, VirtualFittingSession  # noqa: E402
 from app.core.security import hash_password  # noqa: E402
 from app.main import app  # noqa: E402
 
@@ -83,6 +84,25 @@ def test_duplicate_email_and_invalid_login() -> None:
 
 def test_protected_endpoint_requires_token() -> None:
     assert client.get("/api/v1/auth/me").status_code == 401
+
+
+def test_catalog_navigation_returns_categories_and_seasons() -> None:
+    with Session(engine) as db:
+        category = Category(name="Navigation Category")
+        size = Size(name="Navigation M")
+        color = Color(name="Navigation Blue", hex_code="#0000FF")
+        season = Season(name="Navigation Season")
+        db.add_all([category, size, color, season])
+        db.flush()
+        product = Product(category_id=category.id, season_id=season.id, code="NAV-001", name="Navigation Product", slug="navigation-product", price=50)
+        db.add(product)
+        db.flush()
+        category_id = category.id
+        db.add(ProductVariant(product_id=product.id, size_id=size.id, color_id=color.id, sku="NAV-001-M-BLUE"))
+        db.commit()
+    response = client.get("/api/v1/catalog/navigation")
+    assert response.status_code == 200
+    assert response.json()["categories"][0]["id"] == category_id
 
 
 def test_refresh_rotation_and_logout() -> None:
@@ -495,7 +515,7 @@ def test_admin_can_manage_products_and_variants() -> None:
             "code": "CAM-001",
             "name": "Camisa Casual",
             "slug": "camisa-casual",
-            "description": "Camisa de algodón",
+            "description": "Camisa de algodÃ³n",
             "price": "199.90",
             "supplier_ids": [supplier_id],
             "variants": [{"size_id": size_id, "color_id": color_id, "sku": "CAM-001-M-AZUL"}],
@@ -527,7 +547,7 @@ def test_admin_can_upload_manage_and_delete_product_image() -> None:
     with Session(engine) as db:
         admin_role = Role(code="ADMIN", name="Administrador")
         category = Category(name="Fotos")
-        product = Product(category=category, code="IMG-001", name="Producto Fotográfico", slug="producto-fotografico", price=100)
+        product = Product(category=category, code="IMG-001", name="Producto FotogrÃ¡fico", slug="producto-fotografico", price=100)
         db.add_all([admin_role, product])
         db.flush()
         db.add(User(role=admin_role, first_name="Admin", last_name="Images", email="images-admin@example.com", phone="70000030", password_hash=hash_password("Admin123!")))
@@ -585,20 +605,20 @@ def test_admin_can_manage_seasons_collections_and_assign_them_to_products() -> N
     season = client.post(
         "/api/v1/seasons",
         headers=headers,
-        json={"name": "Otoño 2026", "starts_on": "2026-03-01", "ends_on": "2026-05-31"},
+        json={"name": "OtoÃ±o 2026", "starts_on": "2026-03-01", "ends_on": "2026-05-31"},
     )
     assert season.status_code == 201
     season_id = season.json()["id"]
-    assert client.post("/api/v1/seasons", headers=headers, json={"name": "Otoño 2026"}).status_code == 409
+    assert client.post("/api/v1/seasons", headers=headers, json={"name": "OtoÃ±o 2026"}).status_code == 409
 
     collection = client.post(
         "/api/v1/collections",
         headers=headers,
-        json={"season_id": season_id, "name": "Abrigos", "description": "Colección de abrigo"},
+        json={"season_id": season_id, "name": "Abrigos", "description": "ColecciÃ³n de abrigo"},
     )
     assert collection.status_code == 201
     collection_id = collection.json()["id"]
-    assert collection.json()["season_name"] == "Otoño 2026"
+    assert collection.json()["season_name"] == "OtoÃ±o 2026"
     assert client.post("/api/v1/collections", headers=headers, json={"season_id": season_id, "name": "Abrigos"}).status_code == 409
 
     product = client.post(
@@ -625,6 +645,8 @@ def test_admin_can_manage_seasons_collections_and_assign_them_to_products() -> N
         headers=headers,
         json={"season_id": other_season["id"], "collection_id": collection_id},
     ).status_code == 400
+    assert client.patch(f"/api/v1/seasons/{season_id}/deactivate", headers=headers, json={}).status_code == 409
+    assert client.patch(f"/api/v1/collections/{collection_id}/deactivate", headers=headers, json={}).status_code == 409
     assert client.post(
         "/api/v1/products",
         headers=headers,
@@ -632,6 +654,39 @@ def test_admin_can_manage_seasons_collections_and_assign_them_to_products() -> N
     ).status_code == 400
 
 
+def test_season_validity_filters_catalog_and_records_update_audit() -> None:
+    with Session(engine) as db:
+        admin_role = Role(code="ADMIN", name="Administrador")
+        category = Category(name="Abrigos")
+        size = Size(name="S")
+        color = Color(name="Negro", hex_code="#000000")
+        db.add_all([admin_role, category, size, color])
+        db.flush()
+        db.add(User(role=admin_role, first_name="Admin", last_name="Validity", email="validity-admin@example.com", phone="70000021", password_hash=hash_password("Admin123!")))
+        db.commit()
+        category_id, size_id, color_id = category.id, size.id, color.id
+
+    tokens = client.post("/api/v1/auth/login", json={"email": "validity-admin@example.com", "password": "Admin123!"}).json()
+    headers = {"Authorization": f"Bearer {tokens['access_token']}"}
+    assert client.post("/api/v1/seasons", headers=headers, json={"name": "   "}).status_code == 422
+    past = client.post("/api/v1/seasons", headers=headers, json={"name": "Invierno 2020", "starts_on": "2020-01-01", "ends_on": "2020-12-31"})
+    assert past.status_code == 201
+    past_id = past.json()["id"]
+    collection = client.post("/api/v1/collections", headers=headers, json={"season_id": past_id, "name": "Piezas clÃ¡sicas"}).json()
+    product = client.post("/api/v1/products", headers=headers, json={"category_id": category_id, "season_id": past_id, "collection_id": collection["id"], "code": "ABR-PAST", "name": "Abrigo histÃ³rico", "slug": "abrigo-historico", "price": "300.00", "variants": [{"size_id": size_id, "color_id": color_id, "sku": "ABR-PAST-S-NEGRO"}]})
+    assert product.status_code == 201
+    assert client.get("/api/v1/catalog", params={"q": "ABR-PAST"}).json()["total"] == 0
+
+    future = client.post("/api/v1/seasons", headers=headers, json={"name": "Primavera 2099", "starts_on": "2099-01-01", "ends_on": "2099-12-31"})
+    assert future.status_code == 201
+    future_id = future.json()["id"]
+    updated = client.patch(f"/api/v1/seasons/{future_id}", headers=headers, json={"name": "PRIMAVERA 2099"})
+    assert updated.status_code == 200
+    with Session(engine) as db:
+        audit = db.scalar(select(Bitacora).where(Bitacora.entity_type == "season", Bitacora.entity_id == future_id, Bitacora.action == "UPDATE").order_by(Bitacora.id.desc()))
+        assert audit is not None
+        assert audit.old_values["name"] == "Primavera 2099"
+        assert audit.new_values["name"] == "PRIMAVERA 2099"
 def test_admin_can_manage_minimum_inventory() -> None:
     with Session(engine) as db:
         admin_role = Role(code="ADMIN", name="Administrador")
@@ -642,7 +697,7 @@ def test_admin_can_manage_minimum_inventory() -> None:
         db.add_all([admin_role, category, size, color, city])
         db.flush()
         branch = Branch(city_id=city.id, name="Sucursal Norte", address="Av. Norte 20", phone="70000010")
-        product = Product(category_id=category.id, code="PAN-001", name="Pantalón Casual", slug="pantalon-casual", price=150)
+        product = Product(category_id=category.id, code="PAN-001", name="PantalÃ³n Casual", slug="pantalon-casual", price=150)
         db.add_all([branch, product])
         db.flush()
         variant = ProductVariant(product_id=product.id, size_id=size.id, color_id=color.id, sku="PAN-001-L-NEGRO")
@@ -702,6 +757,64 @@ def test_admin_can_manage_minimum_inventory() -> None:
     audit_page = client.get("/api/v1/audit?entity_type=inventory", headers=headers)
     assert audit_page.status_code == 200
     assert audit_page.json()["total"] >= 1
+
+
+def test_branch_manager_can_manage_only_assigned_inventory_movements() -> None:
+    with Session(engine) as db:
+        manager_role = Role(code="BRANCH_MANAGER", name="Encargado de inventario")
+        inventory_read = Permission(code="inventory.read", name="Consultar inventario")
+        inventory_adjust = Permission(code="inventory.adjust", name="Ajustar inventario")
+        admin_role = Role(code="ADMIN", name="Administrador")
+        category = Category(name="Movement Category")
+        size = Size(name="Movement M")
+        color = Color(name="Movement Blue", hex_code="#0000BB")
+        city = City(name="Movement City")
+        db.add_all([manager_role, inventory_read, inventory_adjust, admin_role, category, size, color, city])
+        db.flush()
+        db.add_all([
+            RolePermission(role_id=manager_role.id, permission_id=inventory_read.id),
+            RolePermission(role_id=manager_role.id, permission_id=inventory_adjust.id),
+        ])
+        branch_one = Branch(city_id=city.id, name="Movement Branch One", address="Movement 1", phone="70000060")
+        branch_two = Branch(city_id=city.id, name="Movement Branch Two", address="Movement 2", phone="70000061")
+        product = Product(category_id=category.id, code="MOV-001", name="Producto Movimiento", slug="producto-movimiento", price=80)
+        manager = User(role=manager_role, first_name="Movement", last_name="Manager", email="movement-manager@example.com", phone="70000062", password_hash=hash_password("Manager123!"))
+        admin = User(role=admin_role, first_name="Movement", last_name="Admin", email="movement-admin@example.com", phone="70000063", password_hash=hash_password("Admin123!"))
+        manager.branches.append(branch_one)
+        db.add_all([branch_one, branch_two, product, manager, admin])
+        db.flush()
+        variant = ProductVariant(product_id=product.id, size_id=size.id, color_id=color.id, sku="MOV-001-M-BLUE")
+        db.add(variant)
+        db.flush()
+        inventory_one = Inventory(branch_id=branch_one.id, product_variant_id=variant.id, stock_quantity=5)
+        inventory_two = Inventory(branch_id=branch_two.id, product_variant_id=variant.id, stock_quantity=5)
+        db.add_all([inventory_one, inventory_two])
+        db.commit()
+        inventory_one_id, inventory_two_id = inventory_one.id, inventory_two.id
+
+    admin_tokens = client.post("/api/v1/auth/login", json={"email": "movement-admin@example.com", "password": "Admin123!"}).json()
+    admin_headers = {"Authorization": f"Bearer {admin_tokens['access_token']}"}
+    created = client.post("/api/v1/inventory/movements", headers=admin_headers, json={"inventory_id": inventory_two_id, "movement_type": "IN", "quantity": 2, "reason": "RecepciÃ³n externa"})
+    assert created.status_code == 201
+
+    manager_tokens = client.post("/api/v1/auth/login", json={"email": "movement-manager@example.com", "password": "Manager123!"}).json()
+    manager_headers = {"Authorization": f"Bearer {manager_tokens['access_token']}"}
+    own = client.post("/api/v1/inventory/movements", headers=manager_headers, json={"inventory_id": inventory_one_id, "movement_type": "OUT", "quantity": 2, "reason": "Venta de mostrador"})
+    assert own.status_code == 201
+    assert own.json()["stock_before"] == 5
+    assert own.json()["stock_after"] == 3
+    assert own.json()["branch_name"] == "Movement Branch One"
+    assert client.post("/api/v1/inventory/movements", headers=manager_headers, json={"inventory_id": inventory_one_id, "movement_type": "OUT", "quantity": 10, "reason": "Salida imposible"}).status_code == 409
+    assert client.post("/api/v1/inventory/movements", headers=manager_headers, json={"inventory_id": inventory_one_id, "movement_type": "INVALID", "quantity": 1, "reason": "Tipo invÃ¡lido"}).status_code == 422
+    assert client.get("/api/v1/inventory/movements", headers=manager_headers).json()["total"] == 1
+    assert client.get(f"/api/v1/inventory/movements?inventory_id={inventory_two_id}", headers=manager_headers).status_code == 403
+
+    with Session(engine) as db:
+        movement = db.scalar(select(InventoryMovement).where(InventoryMovement.inventory_id == inventory_one_id))
+        audit = db.scalar(select(Bitacora).where(Bitacora.entity_type == "inventory_movement", Bitacora.entity_id == movement.id))
+        assert movement is not None
+        assert movement.created_by is not None
+        assert audit is not None
 
 
 def test_supplier_portal_only_returns_associated_products() -> None:
@@ -814,11 +927,15 @@ def test_customer_reservation_reserves_and_releases_inventory() -> None:
         client_role = db.scalar(select(Role).where(Role.code == "CLIENT"))
         manager_role = Role(code="BRANCH_MANAGER", name="Encargado de sucursal")
         reservation_read = Permission(code="reservations.read", name="Consultar reservas propias")
+        reservation_create = Permission(code="reservations.create", name="Crear reservas propias")
+        reservation_cancel = Permission(code="reservations.cancel", name="Cancelar reservas propias")
         reservation_manage = Permission(code="reservations.manage", name="Gestionar reservas de sucursal")
-        db.add_all([manager_role, reservation_read, reservation_manage])
+        db.add_all([manager_role, reservation_read, reservation_create, reservation_cancel, reservation_manage])
         db.flush()
         db.add_all([
             RolePermission(role_id=client_role.id, permission_id=reservation_read.id),
+            RolePermission(role_id=client_role.id, permission_id=reservation_create.id),
+            RolePermission(role_id=client_role.id, permission_id=reservation_cancel.id),
             RolePermission(role_id=manager_role.id, permission_id=reservation_manage.id),
             RolePermission(role_id=manager_role.id, permission_id=reservation_read.id),
         ])
@@ -846,18 +963,28 @@ def test_customer_reservation_reserves_and_releases_inventory() -> None:
     customer_tokens = client.post("/api/v1/auth/login", json={"email": "reservation-client@example.com", "password": "Client123!"}).json()
     customer_headers = {"Authorization": f"Bearer {customer_tokens['access_token']}"}
     scheduled_for = (datetime.now(UTC) + timedelta(days=1)).isoformat()
+    failed = client.post("/api/v1/reservations", headers=customer_headers, json={"branch_id": branch_id, "scheduled_for": scheduled_for, "items": [{"product_variant_id": variant_id, "quantity": 1}, {"product_variant_id": 999999, "quantity": 1}]})
+    assert failed.status_code == 400
+    with Session(engine) as db:
+        assert db.scalar(select(Reservation)) is None
+        assert db.get(Inventory, inventory_id).reserved_quantity == 0
     created = client.post("/api/v1/reservations", headers=customer_headers, json={"branch_id": branch_id, "scheduled_for": scheduled_for, "items": [{"product_variant_id": variant_id, "quantity": 2}]})
     assert created.status_code == 201
     reservation_id = created.json()["id"]
     assert created.json()["status"] == "PENDING"
+    assert client.get("/api/v1/reservations/mine", headers=customer_headers).json()["total"] == 1
+    assert client.get(f"/api/v1/reservations/{reservation_id}", headers=customer_headers).status_code == 200
 
     with Session(engine) as db:
         saved_inventory = db.get(Inventory, inventory_id)
         assert saved_inventory.reserved_quantity == 2
         assert db.scalar(select(InventoryMovement).where(InventoryMovement.reference_id == reservation_id, InventoryMovement.movement_type == "RESERVE")) is not None
+        reserve_movement = db.scalar(select(InventoryMovement).where(InventoryMovement.reference_id == reservation_id, InventoryMovement.movement_type == "RESERVE"))
+        assert db.scalar(select(Bitacora).where(Bitacora.entity_type == "inventory_movement", Bitacora.entity_id == reserve_movement.id)) is not None
 
     manager_tokens = client.post("/api/v1/auth/login", json={"email": "reservation-manager@example.com", "password": "Manager123!"}).json()
     manager_headers = {"Authorization": f"Bearer {manager_tokens['access_token']}"}
+    assert client.get("/api/v1/reservations/branches", headers=manager_headers).json()["total"] == 1
     assert client.patch(f"/api/v1/reservations/{reservation_id}/status", headers=manager_headers, json={"status": "PREPARING"}).status_code == 200
     assert client.patch(f"/api/v1/reservations/{reservation_id}/status", headers=manager_headers, json={"status": "READY"}).status_code == 200
     assert client.patch(f"/api/v1/reservations/{reservation_id}/cancel", headers=customer_headers).status_code == 200
@@ -865,7 +992,32 @@ def test_customer_reservation_reserves_and_releases_inventory() -> None:
     with Session(engine) as db:
         saved_inventory = db.get(Inventory, inventory_id)
         assert saved_inventory.reserved_quantity == 0
-        assert db.scalar(select(InventoryMovement).where(InventoryMovement.reference_id == reservation_id, InventoryMovement.movement_type == "RELEASE")) is not None
+        release_movement = db.scalar(select(InventoryMovement).where(InventoryMovement.reference_id == reservation_id, InventoryMovement.movement_type == "RELEASE"))
+        assert release_movement is not None
+        assert db.scalar(select(Bitacora).where(Bitacora.entity_type == "inventory_movement", Bitacora.entity_id == release_movement.id)) is not None
+
+    attended = client.post("/api/v1/reservations", headers=customer_headers, json={"branch_id": branch_id, "items": [{"product_variant_id": variant_id, "quantity": 1}]})
+    assert attended.status_code == 201
+    attended_id = attended.json()["id"]
+    assert client.patch(f"/api/v1/reservations/{attended_id}/status", headers=manager_headers, json={"status": "PREPARING"}).status_code == 200
+    assert client.patch(f"/api/v1/reservations/{attended_id}/status", headers=manager_headers, json={"status": "READY"}).status_code == 200
+    assert client.patch(f"/api/v1/reservations/{attended_id}/status", headers=manager_headers, json={"status": "ATTENDED"}).status_code == 200
+    assert client.patch(f"/api/v1/reservations/{attended_id}/status", headers=manager_headers, json={"status": "PREPARING"}).status_code == 409
+    with Session(engine) as db:
+        assert db.get(Inventory, inventory_id).reserved_quantity == 0
+
+    expired = client.post("/api/v1/reservations", headers=customer_headers, json={"branch_id": branch_id, "items": [{"product_variant_id": variant_id, "quantity": 1}]})
+    assert expired.status_code == 201
+    expired_id = expired.json()["id"]
+    with Session(engine) as db:
+        db.get(Reservation, expired_id).expires_at = datetime.now(UTC) - timedelta(minutes=1)
+        db.commit()
+    mine = client.get("/api/v1/reservations/mine", headers=customer_headers)
+    assert mine.status_code == 200
+    assert next(item for item in mine.json()["items"] if item["id"] == expired_id)["status"] == "EXPIRED"
+    with Session(engine) as db:
+        assert db.get(Inventory, inventory_id).reserved_quantity == 0
+        assert db.scalar(select(InventoryMovement).where(InventoryMovement.reference_id == expired_id, InventoryMovement.movement_type == "RELEASE")) is not None
 
 
 def test_cart_physical_and_digital_sales_update_inventory() -> None:
@@ -919,18 +1071,157 @@ def test_cart_physical_and_digital_sales_update_inventory() -> None:
     physical = client.post("/api/v1/sales/physical", headers=cashier_headers, json={"branch_id": branch_id, "items": [{"product_variant_id": variant_id, "quantity": 1}]})
     assert physical.status_code == 201
     physical_id = physical.json()["id"]
-    paid = client.post(f"/api/v1/sales/{physical_id}/cash-payment", headers=cashier_headers, json={"method": "CASH", "amount": "100"})
+    paid = client.post(f"/api/v1/sales/{physical_id}/cash-payment", headers=cashier_headers, json={"method": "CASH", "amount": "120"})
     assert paid.status_code == 200
     assert paid.json()["status"] == "CONFIRMED"
+    assert paid.json()["payments"][0]["amount"] == "100.00"
+    assert paid.json()["payments"][0]["received_amount"] == "120.00"
+    assert paid.json()["payments"][0]["change_amount"] == "20.00"
 
     digital = client.post("/api/v1/purchases/digital", headers=customer_headers, json={"branch_id": branch_id})
     assert digital.status_code == 201
     sale_id = digital.json()["id"]
     payment = client.post("/api/v1/payments/electronic", headers=customer_headers, json={"sale_id": sale_id, "idempotency_key": "commerce-payment-001", "method": "CARD"})
     assert payment.status_code == 201
-    approved = client.post("/api/v1/payments/electronic/notification", json={"transaction_reference": payment.json()["transaction_reference"], "status": "APPROVED", "amount": "200"})
+    assert client.post("/api/v1/payments/electronic", headers=customer_headers, json={"sale_id": sale_id, "idempotency_key": "commerce-payment-001", "method": "CARD"}).json()["id"] == payment.json()["id"]
+
+    second_digital = client.post("/api/v1/purchases/digital", headers=customer_headers, json={"branch_id": branch_id})
+    assert second_digital.status_code == 201
+    idempotency_conflict = client.post("/api/v1/payments/electronic", headers=customer_headers, json={"sale_id": second_digital.json()["id"], "idempotency_key": "commerce-payment-001", "method": "CARD"})
+    assert idempotency_conflict.status_code == 409
+    rejected_payment = client.post("/api/v1/payments/electronic", headers=customer_headers, json={"sale_id": second_digital.json()["id"], "idempotency_key": "commerce-payment-002", "method": "CARD"})
+    assert rejected_payment.status_code == 201
+    rejected = client.post("/api/v1/payments/electronic/notification", headers={"X-Sandbox-Signature": "sandbox-webhook-secret"}, json={"transaction_reference": rejected_payment.json()["transaction_reference"], "status": "REJECTED", "amount": "200"})
+    assert rejected.status_code == 200
+    terminal_reversal = client.post("/api/v1/payments/electronic/notification", headers={"X-Sandbox-Signature": "sandbox-webhook-secret"}, json={"transaction_reference": rejected_payment.json()["transaction_reference"], "status": "APPROVED", "amount": "200"})
+    assert terminal_reversal.status_code == 409
+
+    unauthenticated = client.post("/api/v1/payments/electronic/notification", json={"transaction_reference": payment.json()["transaction_reference"], "status": "APPROVED", "amount": "200"})
+    assert unauthenticated.status_code == 401
+    approved = client.post("/api/v1/payments/electronic/notification", headers={"X-Sandbox-Signature": "sandbox-webhook-secret"}, json={"transaction_reference": payment.json()["transaction_reference"], "status": "APPROVED", "amount": "200"})
     assert approved.status_code == 200
     with Session(engine) as db:
         inventory = db.scalar(select(Inventory).where(Inventory.branch_id == branch_id, Inventory.product_variant_id == variant_id))
         assert inventory.stock_quantity == 2
         assert db.scalar(select(Sale).where(Sale.id == sale_id)).status == "CONFIRMED"
+        sale_movements = db.scalars(select(InventoryMovement).where(InventoryMovement.inventory_id == inventory.id, InventoryMovement.movement_type == "SALE")).all()
+        assert len(sale_movements) == 2
+        assert all(db.scalar(select(Bitacora).where(Bitacora.entity_type == "inventory_movement", Bitacora.entity_id == movement.id)) is not None for movement in sale_movements)
+
+
+def test_cycle3_history_promotions_reports_recommendations_and_virtual_fitting() -> None:
+    with Session(engine) as db:
+        client_role = db.scalar(select(Role).where(Role.code == "CLIENT"))
+        admin_role = Role(code="ADMIN", name="Administrador")
+        cashier_role = Role(code="CASHIER", name="Cajero Ciclo 3")
+        permissions = {
+            code: Permission(code=code, name=name)
+            for code, name in {
+                "cart.manage": "Gestionar carrito",
+                "sales.read": "Consultar ventas",
+                "sales.create": "Crear ventas",
+                "payments.cash": "Pagos en caja",
+                "payments.electronic": "Pagos electrÃ³nicos",
+                "promotions.manage": "Gestionar promociones",
+                "reports.read": "Consultar reportes",
+                "recommendations.read": "Consultar recomendaciones",
+                "virtual_fitting.use": "Usar vestidor virtual",
+            }.items()
+        }
+        db.add_all([admin_role, cashier_role, *permissions.values()])
+        db.flush()
+        for code in ("cart.manage", "sales.read", "payments.electronic", "recommendations.read", "virtual_fitting.use"):
+            db.add(RolePermission(role_id=client_role.id, permission_id=permissions[code].id))
+        for code in ("sales.read", "sales.create", "payments.cash"):
+            db.add(RolePermission(role_id=cashier_role.id, permission_id=permissions[code].id))
+        category = Category(name="Cycle 3 Category")
+        other_category = Category(name="Cycle 3 Other Category")
+        size = Size(name="Cycle 3 M")
+        color = Color(name="Cycle 3 Blue", hex_code="#0011FF")
+        city = City(name="Cycle 3 City")
+        db.add_all([category, other_category, size, color, city])
+        db.flush()
+        branch = Branch(city_id=city.id, name="Cycle 3 Branch", address="Cycle 3", phone="70000300")
+        product = Product(category_id=category.id, code="C3-001", name="Camisa Ciclo 3", slug="camisa-ciclo-3", price=Decimal("100.00"))
+        recommended_product = Product(category_id=category.id, code="C3-002", name="Chaqueta Recomendada", slug="chaqueta-recomendada", price=Decimal("180.00"))
+        unavailable_product = Product(category_id=other_category.id, code="C3-003", name="Sin Stock", slug="sin-stock", price=Decimal("90.00"))
+        db.add_all([branch, product, recommended_product, unavailable_product])
+        db.flush()
+        variant = ProductVariant(product_id=product.id, size_id=size.id, color_id=color.id, sku="C3-001-M-BLUE")
+        recommended_variant = ProductVariant(product_id=recommended_product.id, size_id=size.id, color_id=color.id, sku="C3-002-M-BLUE")
+        unavailable_variant = ProductVariant(product_id=unavailable_product.id, size_id=size.id, color_id=color.id, sku="C3-003-M-BLUE")
+        db.add_all([variant, recommended_variant, unavailable_variant])
+        db.flush()
+        db.add_all([
+            Inventory(branch_id=branch.id, product_variant_id=variant.id, stock_quantity=8),
+            Inventory(branch_id=branch.id, product_variant_id=recommended_variant.id, stock_quantity=7),
+            Inventory(branch_id=branch.id, product_variant_id=unavailable_variant.id, stock_quantity=0),
+        ])
+        customer = User(role=client_role, first_name="Cycle", last_name="Client", email="cycle3-client@example.com", phone="70000301", password_hash=hash_password("Client123!"))
+        other_customer = User(role=client_role, first_name="Other", last_name="Client", email="cycle3-other@example.com", phone="70000302", password_hash=hash_password("Client123!"))
+        cashier = User(role=cashier_role, first_name="Cycle", last_name="Cashier", email="cycle3-cashier@example.com", phone="70000303", password_hash=hash_password("Cashier123!"))
+        admin = User(role=admin_role, first_name="Cycle", last_name="Admin", email="cycle3-admin@example.com", phone="70000304", password_hash=hash_password("Admin123!"))
+        cashier.branches.append(branch)
+        db.add_all([customer, other_customer, cashier, admin])
+        db.commit()
+        branch_id, product_id, recommended_product_id, unavailable_product_id, variant_id, recommended_variant_id = branch.id, product.id, recommended_product.id, unavailable_product.id, variant.id, recommended_variant.id
+
+    admin_headers = {"Authorization": f"Bearer {client.post('/api/v1/auth/login', json={'email': 'cycle3-admin@example.com', 'password': 'Admin123!'}).json()['access_token']}"}
+    customer_headers = {"Authorization": f"Bearer {client.post('/api/v1/auth/login', json={'email': 'cycle3-client@example.com', 'password': 'Client123!'}).json()['access_token']}"}
+    other_headers = {"Authorization": f"Bearer {client.post('/api/v1/auth/login', json={'email': 'cycle3-other@example.com', 'password': 'Client123!'}).json()['access_token']}"}
+    cashier_headers = {"Authorization": f"Bearer {client.post('/api/v1/auth/login', json={'email': 'cycle3-cashier@example.com', 'password': 'Cashier123!'}).json()['access_token']}"}
+
+    promotion = client.post("/api/v1/promotions", headers=admin_headers, json={"name": "Promo Ciclo 3", "discount_type": "PERCENT", "discount_value": "10", "starts_at": (datetime.now(UTC) - timedelta(days=1)).isoformat(), "ends_at": (datetime.now(UTC) + timedelta(days=2)).isoformat()})
+    assert promotion.status_code == 201
+    promotion_id = promotion.json()["id"]
+    assert client.post(f"/api/v1/promotions/{promotion_id}/products", headers=admin_headers, json={"product_ids": [product_id]}).status_code == 200
+    assert client.get("/api/v1/promotions", headers=customer_headers).status_code == 403
+
+    cart = client.post("/api/v1/cart/items", headers=customer_headers, json={"product_variant_id": variant_id, "quantity": 2})
+    assert cart.status_code == 200
+    assert cart.json()["subtotal"] == "200.00"
+    assert cart.json()["discount"] == "20.00"
+    assert cart.json()["total"] == "180.00"
+    digital = client.post("/api/v1/purchases/digital", headers=customer_headers, json={"branch_id": branch_id})
+    assert digital.status_code == 201
+    assert digital.json()["discount"] == "20.00"
+    assert digital.json()["total"] == "180.00"
+    sale_id = digital.json()["id"]
+    payment = client.post("/api/v1/payments/electronic", headers=customer_headers, json={"sale_id": sale_id, "idempotency_key": "cycle3-payment-001", "method": "CARD"})
+    assert payment.status_code == 201
+    assert client.post("/api/v1/payments/electronic/notification", headers={"X-Sandbox-Signature": "sandbox-webhook-secret"}, json={"transaction_reference": payment.json()["transaction_reference"], "status": "APPROVED", "amount": "180.00"}).status_code == 200
+
+    history = client.get("/api/v1/purchases/mine", headers=customer_headers)
+    assert history.status_code == 200
+    assert history.json()["total"] == 1
+    assert history.json()["items"][0]["id"] == sale_id
+    assert client.get(f"/api/v1/purchases/mine/{sale_id}", headers=other_headers).status_code == 404
+
+    physical = client.post("/api/v1/sales/physical", headers=cashier_headers, json={"branch_id": branch_id, "items": [{"product_variant_id": recommended_variant_id, "quantity": 2}]})
+    assert physical.status_code == 201
+    assert client.post(f"/api/v1/sales/{physical.json()['id']}/cash-payment", headers=cashier_headers, json={"method": "CASH", "amount": "360"}).status_code == 200
+    dashboard = client.get("/api/v1/reports/dashboard", headers=admin_headers)
+    assert dashboard.status_code == 200
+    assert dashboard.json()["revenue"]["sales_count"] == 2
+    assert any(item["product_id"] == recommended_product_id for item in dashboard.json()["top_products"])
+    assert client.get("/api/v1/reports/dashboard", headers=customer_headers).status_code == 403
+
+    recommendations = client.get("/api/v1/recommendations/mine", headers=customer_headers)
+    assert recommendations.status_code == 200
+    recommended_ids = [item["product_id"] for item in recommendations.json()["items"]]
+    assert recommended_product_id in recommended_ids
+    assert unavailable_product_id not in recommended_ids
+    assert all(item["reason"] for item in recommendations.json()["items"])
+
+    session = client.post("/api/v1/virtual-fitting/sessions", headers=customer_headers, json={"product_id": recommended_product_id, "device_info": "test-device"})
+    assert session.status_code == 201
+    assert session.json()["status"] == "STARTED"
+    assert client.patch(f"/api/v1/virtual-fitting/sessions/{session.json()['id']}/finish", headers=other_headers).status_code == 403
+    finished = client.patch(f"/api/v1/virtual-fitting/sessions/{session.json()['id']}/finish", headers=customer_headers)
+    assert finished.status_code == 200
+    assert finished.json()["status"] == "FINISHED"
+    assert client.get("/api/v1/virtual-fitting/sessions/mine", headers=customer_headers).json()["items"][0]["id"] == session.json()["id"]
+    with Session(engine) as db:
+        assert db.scalar(select(Promotion).where(Promotion.id == promotion_id)) is not None
+        assert db.scalar(select(AIRecommendation).where(AIRecommendation.customer_id.is_not(None))) is not None
+        assert db.scalar(select(VirtualFittingSession).where(VirtualFittingSession.id == session.json()["id"])).status == "FINISHED"

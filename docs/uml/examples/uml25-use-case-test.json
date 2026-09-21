@@ -1,0 +1,20 @@
+{
+  "standard": "UML 2.5",
+  "diagram_type": "Use Case",
+  "package_name": "FashionStore / UML / Use Cases",
+  "diagram_name": "UML 2.5 - FashionStore - Use Case Test",
+  "actors": [
+    { "name": "Cliente", "stereotype": "actor" },
+    { "name": "Administrador", "stereotype": "actor" }
+  ],
+  "use_cases": [
+    { "name": "Consultar catálogo", "stereotype": "useCase" },
+    { "name": "Reservar prendas", "stereotype": "useCase" },
+    { "name": "Gestionar reportes", "stereotype": "useCase" }
+  ],
+  "relationships": [
+    { "source": "Cliente", "target": "Consultar catálogo", "type": "Association" },
+    { "source": "Cliente", "target": "Reservar prendas", "type": "Association" },
+    { "source": "Administrador", "target": "Gestionar reportes", "type": "Association" }
+  ]
+}

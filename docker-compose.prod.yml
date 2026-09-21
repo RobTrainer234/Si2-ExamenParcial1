@@ -38,6 +38,8 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     restart: unless-stopped
+    volumes:
+      - ./backend/media:/app/media
     env_file:
       - path: .env
         required: false

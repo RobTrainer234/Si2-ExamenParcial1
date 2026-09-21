@@ -52,6 +52,8 @@ class InventoryMovementCreateRequest(BaseModel):
 class InventoryMovementResponse(BaseModel):
     id: int
     inventory_id: int
+    branch_id: int
+    branch_name: str
     movement_type: str
     quantity: int
     stock_before: int

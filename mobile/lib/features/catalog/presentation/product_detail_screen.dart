@@ -2,8 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/providers.dart';
-import '../data/catalog_models.dart';
+import '../../../core/theme/app_theme.dart';
+import '../../../shared/fashion_ui.dart';
 import '../../cart/presentation/cart_screen.dart';
+import '../../virtual_fitting/presentation/virtual_fitting_screen.dart';
+import '../data/catalog_models.dart';
 
 class ProductDetailScreen extends ConsumerStatefulWidget {
   const ProductDetailScreen({required this.productId, super.key});
@@ -75,58 +78,69 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
   @override
   Widget build(BuildContext context) {
     if (loading) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+      return const Scaffold(
+        body: FashionState(
+          icon: Icons.hourglass_top,
+          title: 'Preparando la ficha',
+          message: 'Estamos cargando tallas, colores y disponibilidad.',
+        ),
+      );
     }
     final item = product;
     if (item == null) {
       return const Scaffold(
-        body: Center(child: Text('Producto no encontrado')),
+        body: FashionState(
+          icon: Icons.search_off_outlined,
+          title: 'Producto no encontrado',
+          message: 'La prenda ya no está disponible en el catálogo.',
+        ),
       );
     }
     return Scaffold(
-      appBar: AppBar(title: const Text('FASHIONSTORE', style: TextStyle(fontSize: 16, letterSpacing: 2, fontWeight: FontWeight.w700)), actions: [IconButton(onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const CartScreen())), icon: const Icon(Icons.shopping_bag_outlined))]),
+      appBar: AppBar(
+        title: const Text('DETALLE'),
+        actions: [
+          IconButton(
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute<void>(builder: (_) => const CartScreen()),
+            ),
+            icon: const Icon(Icons.shopping_bag_outlined),
+            tooltip: 'Ver carrito',
+          ),
+        ],
+      ),
       body: ListView(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.all(AppSpacing.lg),
         children: [
-          if (item.imageUrl != null)
-            Image.network(
-              item.imageUrl!,
-              height: 360,
-              fit: BoxFit.cover,
-              errorBuilder: (_, _, _) => _placeholder(),
-            )
-          else
-            _placeholder(),
-          const SizedBox(height: 22),
+          FashionImageFrame(imageUrl: item.imageUrl, height: 380),
+          const SizedBox(height: AppSpacing.lg),
           Text(
             item.categoryName.toUpperCase(),
             style: Theme.of(context).textTheme.labelSmall?.copyWith(
+              color: AppColors.goldDeep,
               letterSpacing: 2,
-              color: Theme.of(context).colorScheme.primary,
             ),
           ),
-          const SizedBox(height: 8),
-          Text(
-            item.name,
-            style: Theme.of(
-              context,
-            ).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w300),
-          ),
-          const SizedBox(height: 5),
+          const SizedBox(height: AppSpacing.sm),
+          Text(item.name, style: Theme.of(context).textTheme.headlineMedium),
+          const SizedBox(height: AppSpacing.xs),
           Text(
             '${item.price.toStringAsFixed(2)} BOB',
-            style: Theme.of(context).textTheme.titleMedium,
+            style: Theme.of(context).textTheme.titleLarge,
           ),
-          const SizedBox(height: 14),
-          Text(item.description ?? 'Una prenda pensada para tu día a día.'),
-          const SizedBox(height: 25),
+          const SizedBox(height: AppSpacing.md),
           Text(
-            'TALLA Y COLOR',
-            style: Theme.of(
-              context,
-            ).textTheme.labelSmall?.copyWith(letterSpacing: 2),
+            item.description ??
+                'Una prenda seleccionada para elevar tu día a día con comodidad y carácter.',
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: AppColors.charcoalMuted,
+              height: 1.45,
+            ),
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: AppSpacing.xl),
+          Text('TALLA Y COLOR', style: Theme.of(context).textTheme.labelSmall),
+          const SizedBox(height: AppSpacing.sm),
           Wrap(
             spacing: 8,
             runSpacing: 8,
@@ -143,53 +157,88 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
                 ),
             ],
           ),
-          const SizedBox(height: 22),
-           SizedBox(
-            width: double.infinity,
-            child: FilledButton.icon(
-              onPressed: selected == null || checking
-                  ? null
-                  : checkAvailability,
-              icon: const Icon(Icons.storefront_outlined),
-              label: Text(checking ? 'Consultando...' : 'Ver disponibilidad'),
+          const SizedBox(height: AppSpacing.lg),
+          FilledButton.icon(
+            onPressed: selected == null || checking ? null : checkAvailability,
+            icon: const Icon(Icons.storefront_outlined),
+            label: Text(checking ? 'Consultando...' : 'Ver disponibilidad'),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          OutlinedButton.icon(
+            onPressed: selected == null ? null : addToCart,
+            icon: const Icon(Icons.add_shopping_cart),
+            label: const Text('Agregar al carrito'),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          OutlinedButton.icon(
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute<void>(
+                builder: (_) => VirtualFittingScreen(
+                  productId: item.id,
+                  productName: item.name,
+                  imageUrl: item.imageUrl,
+                ),
+              ),
             ),
-           ),
-           const SizedBox(height: 10),
-           SizedBox(
-             width: double.infinity,
-             child: OutlinedButton.icon(
-               onPressed: selected == null ? null : addToCart,
-               icon: const Icon(Icons.add_shopping_cart),
-               label: const Text('Agregar al carrito'),
-             ),
-           ),
-           const SizedBox(height: 18),
+            icon: const Icon(Icons.view_in_ar_outlined),
+            label: const Text('Probar en vestidor virtual'),
+          ),
+          const SizedBox(height: AppSpacing.lg),
           if (checked && availability.isEmpty)
-            const Text('No hay existencias registradas para esta combinación.'),
-           for (final branch in availability)
-             ListTile(
-              contentPadding: EdgeInsets.zero,
-              title: Text(branch.branchName),
-              subtitle: Text('${branch.cityName} · ${branch.address}'),
-               trailing: branch.available
-                   ? FilledButton(
-                       onPressed: () => reserve(branch),
-                       child: const Text('Reservar'),
-                     )
-                   : Text('Agotado', style: TextStyle(color: Colors.grey)),
-             ),
+            const FashionMessageCard(
+              message:
+                  'No hay existencias registradas para esta combinación. Elegí otra variante o consultá más tarde.',
+              icon: Icons.inventory_2_outlined,
+            ),
+          for (final branch in availability) ...[
+            _availabilityCard(context, branch),
+            const SizedBox(height: AppSpacing.sm),
+          ],
         ],
       ),
     );
   }
 
-  Widget _placeholder() => Container(
-    height: 360,
-    color: const Color(0xffebe6de),
-    child: const Center(
-      child: Icon(Icons.checkroom, size: 60, color: Colors.black26),
-    ),
-  );
+  Widget _availabilityCard(BuildContext context, AvailabilityItem branch) =>
+      Card(
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpacing.md),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      branch.branchName,
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                  ),
+                  StatusPill(
+                    label: branch.available ? 'Disponible' : 'Agotado',
+                    tone: branch.available
+                        ? StatusTone.success
+                        : StatusTone.neutral,
+                  ),
+                ],
+              ),
+              const SizedBox(height: AppSpacing.xs),
+              Text('${branch.cityName} · ${branch.address}'),
+              const SizedBox(height: AppSpacing.xs),
+              Text('Stock: ${branch.stock}'),
+              const SizedBox(height: AppSpacing.md),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton(
+                  onPressed: branch.available ? () => reserve(branch) : null,
+                  child: const Text('Reservar para probar'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
 
   Future<void> reserve(AvailabilityItem branch) async {
     final current = selected;
@@ -203,14 +252,26 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
     if (date == null || !mounted) return;
     final scheduled = DateTime(date.year, date.month, date.day, 10);
     try {
-      await ref.read(reservationRepositoryProvider).create(
-        branchId: branch.branchId,
-        variantId: current.id,
-        scheduledFor: scheduled,
-      );
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Reserva creada correctamente.')));
+      await ref
+          .read(reservationRepositoryProvider)
+          .create(
+            branchId: branch.branchId,
+            items: [
+              {'product_variant_id': current.id, 'quantity': 1},
+            ],
+            scheduledFor: scheduled,
+          );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Reserva creada correctamente.')),
+        );
+      }
     } catch (_) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No se pudo crear la reserva.')));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No se pudo crear la reserva.')),
+        );
+      }
     }
   }
 
@@ -219,9 +280,17 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
     if (current == null) return;
     try {
       await ref.read(cartRepositoryProvider).add(current.id);
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Producto agregado al carrito.')));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Producto agregado al carrito.')),
+        );
+      }
     } catch (_) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No se pudo agregar al carrito.')));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No se pudo agregar al carrito.')),
+        );
+      }
     }
   }
 }

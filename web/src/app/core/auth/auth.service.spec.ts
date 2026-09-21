@@ -49,4 +49,21 @@ describe('AuthService', () => {
     request.flush(null);
     expect(service.isAuthenticated()).toBe(false);
   });
+
+  it('clears the local session without calling logout', () => {
+    service.login('client@example.com', 'Secure123!').subscribe();
+    const loginRequest = http.expectOne('/api/v1/auth/login');
+    loginRequest.flush({
+      access_token: 'access',
+      refresh_token: 'refresh',
+      token_type: 'bearer',
+      user: { id: 1, first_name: 'Ana', last_name: 'Lopez', email: 'client@example.com', phone: '70000000', role: 'CLIENT', is_active: true },
+    });
+
+    service.clearSession();
+
+    expect(service.isAuthenticated()).toBe(false);
+    expect(service.accessToken()).toBeNull();
+    expect(localStorage.getItem('fashionstore_session')).toBeNull();
+  });
 });

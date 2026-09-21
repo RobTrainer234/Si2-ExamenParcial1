@@ -44,6 +44,11 @@ class LogoutRequest(BaseModel):
     refresh_token: str = Field(min_length=1)
 
 
+class UserBranchSummary(BaseModel):
+    id: int
+    name: str
+
+
 class UserResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -56,6 +61,7 @@ class UserResponse(BaseModel):
     is_active: bool
     permissions: list[str] = Field(default_factory=list)
     supplier_id: int | None = None
+    branches: list[UserBranchSummary] = Field(default_factory=list)
 
 
 class TokenResponse(BaseModel):

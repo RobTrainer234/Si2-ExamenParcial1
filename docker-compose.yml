@@ -32,6 +32,25 @@ services:
     command: alembic upgrade head
     restart: "no"
 
+  seed:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL in .env}
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env}
+      APP_ENV: ${APP_ENV:-development}
+      SEED_ADMIN_EMAIL: ${SEED_ADMIN_EMAIL:?Set SEED_ADMIN_EMAIL in .env}
+      SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:?Set SEED_ADMIN_PASSWORD in .env}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    command: python -m app.core.seed
+    restart: "no"
+
   backend:
     build:
       context: ./backend
@@ -50,13 +69,15 @@ services:
       ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-15}
       REFRESH_TOKEN_EXPIRE_DAYS: ${REFRESH_TOKEN_EXPIRE_DAYS:-30}
       FRONTEND_URL: ${FRONTEND_URL:?Set FRONTEND_URL in .env}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.5-flash}
     ports:
       - "${BACKEND_PORT:-8000}:8000"
     volumes:
       - ./backend:/app
       - ./backend/media:/app/media
     depends_on:
-      migrate:
+      seed:
         condition: service_completed_successfully
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
     healthcheck:
@@ -76,7 +97,7 @@ services:
     volumes:
       - ./web:/app
       - web_node_modules:/app/node_modules
-    command: sh -c "npm install && npm start -- --host 0.0.0.0 --port 4200 --proxy-config proxy.conf.docker.json"
+    command: sh -c "npm install && npm start -- --host 0.0.0.0 --port 4200 --poll 2000 --proxy-config proxy.conf.docker.json"
     depends_on:
       backend:
         condition: service_healthy

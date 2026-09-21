@@ -1,15 +1,17 @@
 import { ChangeDetectorRef, Component, inject } from '@angular/core';
 import { CurrencyPipe } from '@angular/common';
 import { ActivatedRoute, RouterLink } from '@angular/router';
-import { finalize } from 'rxjs';
+import { FormsModule } from '@angular/forms';
+import { finalize, timeout } from 'rxjs';
 
 import { AvailabilityItem, CatalogDetail, CatalogVariant } from '../../core/models/api.models';
 import { CatalogService } from '../../core/catalog/catalog.service';
 import { CommerceService } from '../../core/commerce/commerce.service';
+import { FittingBagService } from '../../core/reservations/fitting-bag.service';
 
 @Component({
   standalone: true,
-  imports: [CurrencyPipe, RouterLink],
+  imports: [CurrencyPipe, FormsModule, RouterLink],
   template: `
     @if (loading) { <p class="loading page-message">Cargando producto...</p> }
     @if (error) { <p class="error page-message">No se pudo encontrar el producto.</p> }
@@ -43,10 +45,14 @@ import { CommerceService } from '../../core/commerce/commerce.service';
             <div class="selection-heading"><h3>Talla</h3><span>{{ selectedVariant?.available ? (selectedVariant?.stock_total || 0) + ' disponibles' : 'Agotada' }}</span></div>
             <div class="choice-row">@for (variant of sizeOptions; track variant.size_id) { <button type="button" [class.selected]="selectedVariant?.size_id === variant.size_id" [class.unavailable]="!variant.available" [disabled]="!variant.available" (click)="selectSize(variant.size_id)">{{ variant.size_name }}</button> }</div>
           </div>
-           <button class="button button-dark availability-button" [disabled]="!selectedVariant || loadingAvailability" (click)="checkAvailability()">{{ loadingAvailability ? 'Consultando...' : 'Ver disponibilidad en tiendas' }}</button>
-           <button class="button button-light availability-button" [disabled]="!selectedVariant || !selectedVariant.available" (click)="addToCart()">Agregar al carrito</button>
-          @if (availability.length > 0) { <div class="availability-list"><h3>Disponibilidad en tiendas</h3>@for (branch of availability; track branch.branch_id) { <div class="branch-row"><div><strong>{{ branch.branch_name }}</strong><small>{{ branch.city_name }} · {{ branch.address }}</small></div><span [class.in-stock]="branch.available">{{ branch.available ? branch.stock + ' disponibles' : 'Agotado' }}</span></div> }</div> }
-          @if (checked && availability.length === 0) { <p class="muted">No hay existencias registradas para esta combinación.</p> }
+            <button class="button button-dark availability-button" [disabled]="!selectedVariant || loadingAvailability" (click)="checkAvailability()">{{ loadingAvailability ? 'Consultando...' : 'Ver disponibilidad en tiendas' }}</button>
+            <button class="button button-light availability-button" [disabled]="!selectedVariant || !selectedVariant.available || addingToCart" (click)="addToCart()">{{ addingToCart ? 'Agregando...' : 'Agregar al carrito' }}</button>
+            <button class="button button-light availability-button" [disabled]="!product || startingFitting" (click)="startVirtualFitting()">{{ startingFitting ? 'Abriendo vestidor...' : 'Probar en vestidor virtual' }}</button>
+            @if (cartMessage) { <p class="cart-feedback" [class.cart-feedback-error]="cartMessageError">{{ cartMessage }}</p> }
+            @if (availability.length > 0) { <div class="availability-list"><div class="availability-heading"><h3>Disponibilidad en tiendas</h3><a class="small-button" routerLink="/fitting-bag">Ver bolsa de probador ({{ fittingBag.count() }})</a></div><p class="muted">Agregá esta variante a la bolsa y confirmá una sola reserva con todas tus prendas.</p>@for (branch of availability; track branch.branch_id) { <div class="branch-row"><div><strong>{{ branch.branch_name }}</strong><small>{{ branch.city_name }} · {{ branch.address }}</small></div><span [class.in-stock]="branch.available">{{ branch.available ? branch.stock + ' disponibles' : 'Agotado' }}</span>@if (branch.available) { <button class="small-button" type="button" (click)="addToFittingBag()">Agregar a bolsa</button> }</div> }</div> }
+            @if (fittingBagMessage) { <div class="cart-feedback fitting-bag-added" role="status"><span>{{ fittingBagMessage }}</span><a class="small-button" routerLink="/catalog">Seguir explorando</a><a class="small-button" routerLink="/fitting-bag">Ver bolsa</a></div> }
+            @if (checked && availability.length === 0) { <p class="muted">No hay existencias registradas para esta combinación.</p> }
+            @if (availabilityError) { <p class="error page-message">No se pudo consultar la disponibilidad. Intenta nuevamente.</p> }
           <details class="product-accordion detail-accordion"><summary>Envíos y devoluciones <span class="material-symbols-outlined">add</span></summary><p>Consulta la disponibilidad en tu sucursal más cercana antes de visitar la tienda.</p></details>
         </div>
       </section>
@@ -58,6 +64,7 @@ export class ProductDetailComponent {
   private readonly catalog = inject(CatalogService);
   private readonly commerce = inject(CommerceService);
   private readonly changeDetector = inject(ChangeDetectorRef);
+  readonly fittingBag = inject(FittingBagService);
   product: CatalogDetail | null = null;
   selectedVariant: CatalogVariant | null = null;
   availability: AvailabilityItem[] = [];
@@ -66,7 +73,14 @@ export class ProductDetailComponent {
   loading = true;
   loadingAvailability = false;
   checked = false;
+  availabilityError = false;
   error = false;
+  addingToCart = false;
+  cartMessage = '';
+  cartMessageError = false;
+  startingFitting = false;
+  fittingBagMessage = '';
+
   readonly placeholder = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="600" height="700" viewBox="0 0 600 700"%3E%3Crect width="600" height="700" fill="%23eee9e1"/%3E%3Ctext x="300" y="350" text-anchor="middle" fill="%2390887e" font-size="24"%3EFashionStore%3C/text%3E%3C/svg%3E';
 
   constructor() {
@@ -79,7 +93,7 @@ export class ProductDetailComponent {
   get sizeOptions(): CatalogVariant[] { return this.uniqueBy((this.product?.variants || []).filter((variant) => !this.selectedColorId || variant.color_id === this.selectedColorId), 'size_id'); }
   get audienceLabel(): string { return this.product?.audience === 'WOMEN' ? 'Mujer' : this.product?.audience === 'MEN' ? 'Hombre' : 'Unisex'; }
   colorAvailable(colorId: number): boolean { return (this.product?.variants || []).some((item) => item.color_id === colorId && item.available); }
-  select(variant: CatalogVariant): void { this.selectedVariant = variant; this.selectedColorId = variant.color_id; this.checked = false; this.availability = []; }
+  select(variant: CatalogVariant): void { this.selectedVariant = variant; this.selectedColorId = variant.color_id; this.checked = false; this.availability = []; this.availabilityError = false; }
   selectColor(colorId: number): void { const variant = (this.product?.variants || []).find((item) => item.color_id === colorId && item.size_id === this.selectedVariant?.size_id && item.available) || (this.product?.variants || []).find((item) => item.color_id === colorId && item.available); if (variant) this.select(variant); }
   selectSize(sizeId: number): void { const variant = (this.product?.variants || []).find((item) => item.size_id === sizeId && item.color_id === this.selectedColorId); if (variant?.available) this.select(variant); }
   colorSwatch(name: string): string { const value = name.toLowerCase(); return value.includes('negro') || value.includes('black') ? '#1a1918' : value.includes('verde') || value.includes('green') ? '#646f58' : value.includes('terracota') || value.includes('rojo') ? '#9e5a44' : '#c19a6b'; }
@@ -89,11 +103,34 @@ export class ProductDetailComponent {
   checkAvailability(): void {
     if (!this.product || !this.selectedVariant) return;
     this.loadingAvailability = true;
-    this.catalog.availability(this.product.id, this.selectedVariant.size_id, this.selectedVariant.color_id).subscribe({ next: (items) => { this.availability = items; this.checked = true; this.loadingAvailability = false; }, error: () => { this.availability = []; this.checked = true; this.loadingAvailability = false; } });
+    this.availabilityError = false;
+    this.catalog.availability(this.product.id, this.selectedVariant.size_id, this.selectedVariant.color_id).pipe(
+      timeout({ each: 10000 }),
+      finalize(() => { this.loadingAvailability = false; this.changeDetector.detectChanges(); }),
+    ).subscribe({ next: (items) => { this.availability = items; this.checked = true; }, error: () => { this.availability = []; this.checked = true; this.availabilityError = true; } });
   }
 
-  addToCart(): void {
-    if (!this.selectedVariant) return;
-    this.commerce.addToCart(this.selectedVariant.id).subscribe({ next: () => this.error = false, error: () => this.error = true });
+   addToCart(): void {
+     if (!this.selectedVariant || !this.selectedVariant.available) return;
+     this.addingToCart = true;
+     this.cartMessage = '';
+     this.cartMessageError = false;
+     this.commerce.addToCart(this.selectedVariant.id).pipe(
+       timeout({ each: 10000 }),
+       finalize(() => { this.addingToCart = false; this.changeDetector.detectChanges(); }),
+     ).subscribe({ next: () => { this.error = false; this.cartMessage = 'Producto agregado al carrito.'; }, error: (response: { error?: { detail?: { message?: string } } }) => { this.cartMessageError = true; this.cartMessage = response.error?.detail?.message || 'No se pudo agregar el producto al carrito.'; } });
+   }
+
+  startVirtualFitting(): void {
+    if (!this.product) return;
+    this.startingFitting = true;
+    this.commerce.startVirtualFitting(this.product.id, 'web-fitting-simulator').pipe(finalize(() => { this.startingFitting = false; this.changeDetector.detectChanges(); })).subscribe({ next: (session) => { this.cartMessageError = false; this.cartMessage = `Vestidor virtual iniciado para ${session.product_name}. En móvil se usa cámara/overlay; en web queda registrado como simulador.`; }, error: () => { this.cartMessageError = true; this.cartMessage = 'No se pudo iniciar el vestidor virtual.'; } });
+  }
+
+  addToFittingBag(): void {
+    if (!this.product || !this.selectedVariant) return;
+    this.fittingBag.add(this.product, this.selectedVariant, this.availability);
+    this.fittingBagMessage = `${this.product.name} se agregó a la bolsa. Podés seguir explorando y sumar más prendas.`;
+    this.changeDetector.detectChanges();
   }
 }

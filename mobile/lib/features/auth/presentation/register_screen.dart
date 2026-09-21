@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/providers.dart';
+import '../../../core/theme/app_theme.dart';
+import '../../../shared/fashion_ui.dart';
 
 class RegisterScreen extends ConsumerStatefulWidget {
   const RegisterScreen({super.key});
@@ -41,75 +43,90 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
       'phone': phone.text.trim(),
       'password': password.text,
     });
-    if (success && mounted) Navigator.pop(context);
+    if (success && mounted) {
+      Navigator.of(context).popUntil((route) => route.isFirst);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final auth = ref.watch(authControllerProvider);
     return Scaffold(
-      appBar: AppBar(title: const Text('Crear cuenta')),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          children: [
-            TextField(
-              controller: firstName,
-              decoration: const InputDecoration(
-                labelText: 'Nombres',
-                border: OutlineInputBorder(),
+      appBar: AppBar(title: const Text('CREAR CUENTA')),
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(AppSpacing.lg),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const FashionSectionHeader(
+                eyebrow: 'Acceso privado',
+                title: 'Armemos tu perfil de estilo.',
+                body:
+                    'Usaremos estos datos para tus reservas, compras y recomendaciones personalizadas.',
               ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: lastName,
-              decoration: const InputDecoration(
-                labelText: 'Apellidos',
-                border: OutlineInputBorder(),
+              const SizedBox(height: AppSpacing.xl),
+              TextField(
+                controller: firstName,
+                textInputAction: TextInputAction.next,
+                decoration: const InputDecoration(
+                  labelText: 'Nombres',
+                  prefixIcon: Icon(Icons.person_outline),
+                ),
               ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: email,
-              keyboardType: TextInputType.emailAddress,
-              decoration: const InputDecoration(
-                labelText: 'Correo electrónico',
-                border: OutlineInputBorder(),
+              const SizedBox(height: AppSpacing.md),
+              TextField(
+                controller: lastName,
+                textInputAction: TextInputAction.next,
+                decoration: const InputDecoration(labelText: 'Apellidos'),
               ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: phone,
-              keyboardType: TextInputType.phone,
-              decoration: const InputDecoration(
-                labelText: 'Teléfono',
-                border: OutlineInputBorder(),
+              const SizedBox(height: AppSpacing.md),
+              TextField(
+                controller: email,
+                keyboardType: TextInputType.emailAddress,
+                textInputAction: TextInputAction.next,
+                decoration: const InputDecoration(
+                  labelText: 'Correo electrónico',
+                  prefixIcon: Icon(Icons.mail_outline),
+                ),
               ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: password,
-              obscureText: true,
-              decoration: const InputDecoration(
-                labelText: 'Contraseña segura',
-                helperText: 'Mayúscula, minúscula, número y carácter especial',
-                border: OutlineInputBorder(),
+              const SizedBox(height: AppSpacing.md),
+              TextField(
+                controller: phone,
+                keyboardType: TextInputType.phone,
+                textInputAction: TextInputAction.next,
+                decoration: const InputDecoration(
+                  labelText: 'Teléfono',
+                  prefixIcon: Icon(Icons.phone_outlined),
+                ),
               ),
-            ),
-            const SizedBox(height: 20),
-            if (auth.error != null)
-              Text(
-                auth.error!,
-                style: TextStyle(color: Theme.of(context).colorScheme.error),
+              const SizedBox(height: AppSpacing.md),
+              TextField(
+                controller: password,
+                obscureText: true,
+                decoration: const InputDecoration(
+                  labelText: 'Contraseña segura',
+                  helperText: 'Incluí mayúscula, minúscula, número y símbolo.',
+                  prefixIcon: Icon(Icons.lock_outline),
+                ),
               ),
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton(
-                onPressed: auth.loading ? null : submit,
-                child: Text(auth.loading ? 'Creando...' : 'Crear cuenta'),
+              if (auth.error != null) ...[
+                const SizedBox(height: AppSpacing.md),
+                FashionMessageCard(
+                  message: auth.error!,
+                  icon: Icons.info_outline,
+                ),
+              ],
+              const SizedBox(height: AppSpacing.lg),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton(
+                  onPressed: auth.loading ? null : submit,
+                  child: Text(auth.loading ? 'Creando...' : 'Crear cuenta'),
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

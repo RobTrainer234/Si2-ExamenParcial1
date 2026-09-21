@@ -7,9 +7,14 @@ globalmente; los encargados de sucursal solo pueden consultar y ajustar las
 sucursales asignadas, mientras que los cajeros tienen acceso de lectura.
 
 Cada ajuste de cantidad genera un movimiento `IN` o `OUT` con stock anterior,
-stock nuevo, usuario y motivo. Las reservas generan `RESERVE` y las
-cancelaciones o vencimientos generan `RELEASE`. Los movimientos derivados
-conservan el tipo e identificador de la entidad que los originó.
+stock nuevo, usuario y motivo. Las reservas generan `RESERVE`, las
+cancelaciones o vencimientos generan `RELEASE` y las ventas confirmadas
+generan `SALE`. Los movimientos derivados conservan el tipo e identificador
+de la entidad que los originó y cada movimiento tiene su entrada de auditoría.
+
+Los tipos válidos están restringidos por la API y la base de datos. Las
+operaciones que cambian stock bloquean el registro de inventario y se ejecutan
+en una transacción; un error revierte el cambio y su trazabilidad asociada.
 
 Endpoints adicionales:
 

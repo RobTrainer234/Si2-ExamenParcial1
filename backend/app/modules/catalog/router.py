@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.modules.catalog import service
 from app.modules.catalog.schemas import AvailabilityItem, CatalogDetail, CatalogFilters, CatalogNavigation, CatalogPage
+from app.modules.virtual_fitting.schemas import VtonTryOnRequest, VtonTryOnResponse
 
 router = APIRouter(prefix="/catalog", tags=["catalog"])
 
@@ -49,3 +50,15 @@ def get_availability(
     db: Session = Depends(get_db),
 ):
     return service.availability(db, product_id, size_id, color_id)
+
+
+@router.post("/vton/try-on", response_model=VtonTryOnResponse)
+def vton_try_on_catalog(data: VtonTryOnRequest, db: Session = Depends(get_db)):
+    from app.modules.virtual_fitting.vton_service import VtonService
+    return VtonService.process_try_on(
+        db=db,
+        product_id=data.product_id,
+        image_base64=data.image_base64,
+        metrics=data.metrics,
+    )
+

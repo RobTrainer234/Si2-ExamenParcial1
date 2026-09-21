@@ -51,4 +51,5 @@ def me(current_user: Annotated[User, Depends(get_current_user)]) -> dict[str, ob
         "is_active": current_user.is_active,
         "permissions": sorted(permission.code for permission in current_user.role.permissions if permission.is_active),
         "supplier_id": current_user.supplier_id,
+        "branches": [{"id": b.id, "name": b.name} for b in current_user.branches],
     }

@@ -1,4 +1,4 @@
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from math import ceil
 
 from fastapi import HTTPException, status
@@ -6,6 +6,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session, joinedload
 
 from app.core.audit import record_audit
+from app.core.config import settings
 from app.core.models import Branch, Inventory, ProductVariant, Reservation, ReservationItem, User
 from app.modules.inventory.service import release_stock, reserve_stock
 from app.modules.reservations.schemas import ReservationCreateRequest, ReservationStatusRequest
@@ -18,7 +19,7 @@ def error(code: str, message: str, http_status: int) -> HTTPException:
 def reservation_query():
     return select(Reservation).options(
         joinedload(Reservation.customer),
-        joinedload(Reservation.branch),
+        joinedload(Reservation.branch).joinedload(Branch.city),
         joinedload(Reservation.items).joinedload(ReservationItem.product_variant).joinedload(ProductVariant.product),
         joinedload(Reservation.items).joinedload(ReservationItem.product_variant).joinedload(ProductVariant.size),
         joinedload(Reservation.items).joinedload(ReservationItem.product_variant).joinedload(ProductVariant.color),
@@ -32,6 +33,16 @@ def get_reservation(db: Session, reservation_id: int) -> Reservation:
     return reservation
 
 
+def get_locked_reservation(db: Session, reservation_id: int) -> Reservation:
+    locked_reservation = db.scalar(select(Reservation).where(Reservation.id == reservation_id).with_for_update())
+    if locked_reservation is None:
+        raise error("RESERVATION_NOT_FOUND", "Reserva no encontrada.", status.HTTP_404_NOT_FOUND)
+    reservation = db.scalar(reservation_query().where(Reservation.id == locked_reservation.id))
+    if reservation is None:
+        raise error("RESERVATION_NOT_FOUND", "Reserva no encontrada.", status.HTTP_404_NOT_FOUND)
+    return reservation
+
+
 def serialize_reservation(reservation: Reservation) -> dict[str, object]:
     return {
         "id": reservation.id,
@@ -39,6 +50,11 @@ def serialize_reservation(reservation: Reservation) -> dict[str, object]:
         "customer_name": f"{reservation.customer.first_name} {reservation.customer.last_name}",
         "branch_id": reservation.branch_id,
         "branch_name": reservation.branch.name,
+        "branch_city_name": reservation.branch.city.name if reservation.branch.city else None,
+        "branch_address": reservation.branch.address,
+        "branch_phone": reservation.branch.phone,
+        "branch_latitude": float(reservation.branch.latitude) if reservation.branch.latitude is not None else None,
+        "branch_longitude": float(reservation.branch.longitude) if reservation.branch.longitude is not None else None,
         "scheduled_for": reservation.scheduled_for,
         "status": reservation.status,
         "notes": reservation.notes,
@@ -83,7 +99,7 @@ def create_reservation(db: Session, data: ReservationCreateRequest, customer: Us
         branch_id=data.branch_id,
         scheduled_for=data.scheduled_for,
         notes=data.notes.strip() if data.notes else None,
-        expires_at=(data.scheduled_for + timedelta(hours=2)) if data.scheduled_for else None,
+        expires_at=(data.scheduled_for + timedelta(hours=2)) if data.scheduled_for else datetime.now(UTC) + timedelta(hours=settings.reservation_expiration_hours),
     )
     db.add(reservation)
     db.flush()
@@ -91,13 +107,20 @@ def create_reservation(db: Session, data: ReservationCreateRequest, customer: Us
         variant = db.scalar(select(ProductVariant).options(joinedload(ProductVariant.product)).where(ProductVariant.id == request_item.product_variant_id, ProductVariant.is_active.is_(True)))
         if variant is None or not variant.product.is_active:
             raise error("VARIANT_NOT_FOUND_OR_INACTIVE", "Una variante no existe o está inactiva.", status.HTTP_400_BAD_REQUEST)
+        season = variant.product.season
+        collection = variant.product.collection
+        today = date.today()
+        if season and (not season.is_active or (season.starts_on and season.starts_on > today) or (season.ends_on and season.ends_on < today)):
+            raise error("PRODUCT_OUTSIDE_VALIDITY", "El producto no está vigente para reserva.", status.HTTP_400_BAD_REQUEST)
+        if collection and not collection.is_active:
+            raise error("PRODUCT_OUTSIDE_VALIDITY", "El producto no está vigente para reserva.", status.HTTP_400_BAD_REQUEST)
         inventory = db.scalar(select(Inventory.id).where(Inventory.branch_id == data.branch_id, Inventory.product_variant_id == request_item.product_variant_id))
         if inventory is None:
             raise error("INVENTORY_NOT_FOUND", "No existe inventario para una variante en la sucursal seleccionada.", status.HTTP_409_CONFLICT)
         item = ReservationItem(reservation_id=reservation.id, product_variant_id=request_item.product_variant_id, quantity=request_item.quantity, unit_price=variant.product.price)
         db.add(item)
         db.flush()
-        reserve_stock(db, inventory, request_item.quantity, reservation.id)
+        reserve_stock(db, inventory, request_item.quantity, reservation.id, customer)
     record_audit(db, customer, "CREATE", "reservation", reservation.id, "Reserva de prendas creada.", new_values={"branch_id": reservation.branch_id, "status": reservation.status})
     return get_reservation(db, reservation.id)
 
@@ -130,18 +153,23 @@ ALLOWED_TRANSITIONS = {
 }
 
 
-def change_status(db: Session, reservation: Reservation, data: ReservationStatusRequest, user: User) -> Reservation:
+def change_status(db: Session, reservation: Reservation, data: ReservationStatusRequest, user: User | None) -> Reservation:
+    reservation = get_locked_reservation(db, reservation.id)
+    if data.status == "EXPIRED" and reservation.expires_at is not None:
+        expires_at = reservation.expires_at if reservation.expires_at.tzinfo else reservation.expires_at.replace(tzinfo=UTC)
+        if expires_at > datetime.now(UTC):
+            raise error("RESERVATION_NOT_EXPIRED", "La reserva todavía no ha vencido.", status.HTTP_409_CONFLICT)
     if data.status not in ALLOWED_TRANSITIONS.get(reservation.status, set()):
         raise error("INVALID_RESERVATION_TRANSITION", f"No se puede cambiar de {reservation.status} a {data.status}.", status.HTTP_409_CONFLICT)
     old_status = reservation.status
     reservation.status = data.status
     if data.notes is not None:
         reservation.notes = data.notes.strip() or None
-    if data.status in {"CANCELLED", "EXPIRED"}:
+    if data.status in {"CANCELLED", "EXPIRED", "ATTENDED"}:
         for item in reservation.items:
             inventory_id = db.scalar(select(Inventory.id).where(Inventory.branch_id == reservation.branch_id, Inventory.product_variant_id == item.product_variant_id))
             if inventory_id is not None:
-                release_stock(db, inventory_id, item.quantity, reservation.id)
+                release_stock(db, inventory_id, item.quantity, reservation.id, user, "Reserva atendida sin venta" if data.status == "ATTENDED" else "Liberación de reserva")
     record_audit(db, user, "UPDATE", "reservation", reservation.id, "Estado de reserva actualizado.", old_values={"status": old_status}, new_values={"status": reservation.status})
     db.flush()
     return get_reservation(db, reservation.id)

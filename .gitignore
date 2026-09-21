@@ -34,3 +34,5 @@ tmp/
 backend/media/
 stitch_fashionstore_platform_ui/
 docs/esquema_generado.sql
+# Local Pi runtime state
+.atl/

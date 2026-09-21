@@ -5,6 +5,7 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, joinedload
 
+from app.core.audit import record_audit
 from app.core.models import Branch, Inventory, InventoryMovement, ProductVariant, User
 from app.modules.inventory.schemas import InventoryCreateRequest, InventoryMovementCreateRequest, InventoryUpdateRequest
 
@@ -118,7 +119,9 @@ def update_inventory(db: Session, item: Inventory, data: InventoryUpdateRequest,
 
 
 def get_locked_inventory(db: Session, inventory_id: int) -> Inventory:
-    item = db.scalar(_inventory_query().where(Inventory.id == inventory_id).with_for_update())
+    # Lock only the inventory row. PostgreSQL rejects FOR UPDATE on nullable
+    # sides of the outer joins used by the serialization query.
+    item = db.scalar(select(Inventory).where(Inventory.id == inventory_id).with_for_update())
     if item is None:
         raise _error("INVENTORY_NOT_FOUND", "Registro de inventario no encontrado.", status.HTTP_404_NOT_FOUND)
     return item
@@ -135,6 +138,10 @@ def apply_movement(
     reference_type: str | None = None,
     reference_id: int | None = None,
 ) -> InventoryMovement:
+    if movement_type not in {"IN", "OUT", "RETURN", "RESERVE", "RELEASE", "SALE"}:
+        raise _error("INVALID_MOVEMENT_TYPE", "El tipo de movimiento no es válido.", status.HTTP_400_BAD_REQUEST)
+    if quantity <= 0:
+        raise _error("INVALID_MOVEMENT_QUANTITY", "La cantidad debe ser mayor que cero.", status.HTTP_400_BAD_REQUEST)
     item = get_locked_inventory(db, inventory_id)
     before = item.stock_quantity
     increases_stock = movement_type in {"IN", "RETURN"}
@@ -155,25 +162,48 @@ def apply_movement(
     )
     db.add(movement)
     db.flush()
+    record_audit(
+        db,
+        user,
+        "CREATE",
+        "inventory_movement",
+        movement.id,
+        "Movimiento de inventario registrado.",
+        new_values={"inventory_id": movement.inventory_id, "movement_type": movement.movement_type, "quantity": movement.quantity, "stock_before": movement.stock_before, "stock_after": movement.stock_after, "reference_type": movement.reference_type, "reference_id": movement.reference_id},
+    )
     return movement
 
 
-def list_movements(db: Session, page: int, page_size: int, inventory_id: int | None, movement_type: str | None) -> dict[str, object]:
-    statement = select(InventoryMovement).order_by(InventoryMovement.id.desc())
-    count_statement = select(func.count(InventoryMovement.id))
+def create_manual_movement(db: Session, data: InventoryMovementCreateRequest, user: User) -> InventoryMovement:
+    reason = data.reason.strip()
+    if len(reason) < 2:
+        raise _error("INVALID_REASON", "El motivo debe contener al menos dos caracteres.", status.HTTP_400_BAD_REQUEST)
+    return apply_movement(db, data.inventory_id, data.movement_type, data.quantity, reason, user)
+
+
+def list_movements(
+    db: Session,
+    page: int,
+    page_size: int,
+    inventory_id: int | None,
+    movement_type: str | None,
+    allowed_branch_ids: set[int] | None = None,
+) -> dict[str, object]:
+    statement = select(InventoryMovement).options(joinedload(InventoryMovement.inventory).joinedload(Inventory.branch)).join(Inventory, InventoryMovement.inventory_id == Inventory.id).order_by(InventoryMovement.id.desc())
+    count_statement = select(func.count(InventoryMovement.id)).join(Inventory, InventoryMovement.inventory_id == Inventory.id)
     if inventory_id is not None:
         statement = statement.where(InventoryMovement.inventory_id == inventory_id)
         count_statement = count_statement.where(InventoryMovement.inventory_id == inventory_id)
     if movement_type is not None:
         statement = statement.where(InventoryMovement.movement_type == movement_type)
         count_statement = count_statement.where(InventoryMovement.movement_type == movement_type)
+    if allowed_branch_ids is not None:
+        statement = statement.where(Inventory.branch_id.in_(allowed_branch_ids))
+        count_statement = count_statement.where(Inventory.branch_id.in_(allowed_branch_ids))
     total = db.scalar(count_statement) or 0
     items = db.scalars(statement.offset((page - 1) * page_size).limit(page_size)).all()
     return {
-        "items": [
-            serialize_movement(item)
-            for item in items
-        ],
+        "items": [serialize_movement(item) for item in items],
         "page": page,
         "page_size": page_size,
         "total": total,
@@ -181,14 +211,12 @@ def list_movements(db: Session, page: int, page_size: int, inventory_id: int | N
     }
 
 
-def create_manual_movement(db: Session, data: InventoryMovementCreateRequest, user: User) -> InventoryMovement:
-    return apply_movement(db, data.inventory_id, data.movement_type, data.quantity, data.reason, user)
-
-
 def serialize_movement(movement: InventoryMovement) -> dict[str, object]:
     return {
         "id": movement.id,
         "inventory_id": movement.inventory_id,
+        "branch_id": movement.inventory.branch_id,
+        "branch_name": movement.inventory.branch.name,
         "movement_type": movement.movement_type,
         "quantity": movement.quantity,
         "stock_before": movement.stock_before,
@@ -201,13 +229,13 @@ def serialize_movement(movement: InventoryMovement) -> dict[str, object]:
     }
 
 
-def reserve_stock(db: Session, inventory_id: int, quantity: int, reference_id: int) -> Inventory:
+def reserve_stock(db: Session, inventory_id: int, quantity: int, reference_id: int, user: User | None = None) -> Inventory:
     item = get_locked_inventory(db, inventory_id)
     available = item.stock_quantity - item.reserved_quantity
     if available < quantity:
         raise _error("INSUFFICIENT_STOCK", "No existe disponibilidad suficiente para reservar.", status.HTTP_409_CONFLICT)
     item.reserved_quantity += quantity
-    db.add(InventoryMovement(
+    movement = InventoryMovement(
         inventory_id=item.id,
         movement_type="RESERVE",
         quantity=quantity,
@@ -216,25 +244,31 @@ def reserve_stock(db: Session, inventory_id: int, quantity: int, reference_id: i
         reason="Reserva de prendas",
         reference_type="reservation",
         reference_id=reference_id,
-    ))
+        created_by=user.id if user else None,
+    )
+    db.add(movement)
     db.flush()
+    record_audit(db, user, "CREATE", "inventory_movement", movement.id, "Reserva de inventario registrada.", new_values={"inventory_id": item.id, "movement_type": "RESERVE", "quantity": quantity, "reserved_after": item.reserved_quantity, "reference_type": "reservation", "reference_id": reference_id})
     return item
 
 
-def release_stock(db: Session, inventory_id: int, quantity: int, reference_id: int) -> Inventory:
+def release_stock(db: Session, inventory_id: int, quantity: int, reference_id: int, user: User | None = None, reason: str = "Liberación de reserva") -> Inventory:
     item = get_locked_inventory(db, inventory_id)
     if item.reserved_quantity < quantity:
         raise _error("INVALID_RESERVED_STOCK", "La liberación supera las unidades reservadas.", status.HTTP_409_CONFLICT)
     item.reserved_quantity -= quantity
-    db.add(InventoryMovement(
+    movement = InventoryMovement(
         inventory_id=item.id,
         movement_type="RELEASE",
         quantity=quantity,
         stock_before=item.stock_quantity,
         stock_after=item.stock_quantity,
-        reason="Liberación de reserva",
+        reason=reason,
         reference_type="reservation",
         reference_id=reference_id,
-    ))
+        created_by=user.id if user else None,
+    )
+    db.add(movement)
     db.flush()
+    record_audit(db, user, "CREATE", "inventory_movement", movement.id, "Liberación de inventario registrada.", new_values={"inventory_id": item.id, "movement_type": "RELEASE", "quantity": quantity, "reserved_after": item.reserved_quantity, "reference_type": "reservation", "reference_id": reference_id})
     return item

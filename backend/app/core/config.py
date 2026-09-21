@@ -12,10 +12,21 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     access_token_expire_minutes: int = 15
     refresh_token_expire_days: int = 30
+    reservation_expiration_hours: int = 24
     frontend_url: str = "http://localhost:4200"
     media_dir: str = "media"
     seed_admin_email: str = "admin@fashionstore.local"
     seed_admin_password: str = ""
+    sandbox_payment_webhook_secret: str = "sandbox-webhook-secret"
+    openai_api_key: str | None = None
+    openai_model: str = "gpt-4.1-mini"
+    gemini_api_key: str | None = None
+    gemini_model: str = "gemini-1.5-flash"
+    gemini_vton_model: str = "gemini-2.5-flash-image"
+    stripe_secret_key: str | None = None
+    stripe_publishable_key: str | None = None
+    stripe_webhook_secret: str | None = None
+    stripe_currency: str = "bob"
 
     # The shared Docker env file also contains infrastructure variables that
     # are not application settings. Keep those variables available to the

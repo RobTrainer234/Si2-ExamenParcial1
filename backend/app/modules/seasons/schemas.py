@@ -13,6 +13,8 @@ class SeasonCreateRequest(BaseModel):
         if self.starts_on and self.ends_on and self.ends_on < self.starts_on:
             raise ValueError("La fecha de finalización no puede ser anterior a la fecha de inicio")
         self.name = self.name.strip()
+        if not self.name:
+            raise ValueError("El nombre de la temporada es obligatorio")
         return self
 
 
@@ -27,6 +29,8 @@ class SeasonUpdateRequest(BaseModel):
             raise ValueError("La fecha de finalización no puede ser anterior a la fecha de inicio")
         if self.name is not None:
             self.name = self.name.strip()
+            if not self.name:
+                raise ValueError("El nombre de la temporada es obligatorio")
         return self
 
 
@@ -46,6 +50,8 @@ class CollectionCreateRequest(BaseModel):
     @model_validator(mode="after")
     def clean_name(self):
         self.name = self.name.strip()
+        if not self.name:
+            raise ValueError("El nombre de la colección es obligatorio")
         return self
 
 
@@ -58,6 +64,8 @@ class CollectionUpdateRequest(BaseModel):
     def clean_name(self):
         if self.name is not None:
             self.name = self.name.strip()
+            if not self.name:
+                raise ValueError("El nombre de la colección es obligatorio")
         return self
 
 

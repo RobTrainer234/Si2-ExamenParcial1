@@ -1,7 +1,7 @@
 # FashionStore
 
 Plataforma de comercio electrónico para una cadena de tiendas de ropa.
-Este repositorio contiene la base del Ciclo 1.
+Este repositorio contiene la implementación incremental de los Ciclos 1, 2 y 3.
 
 ## Stack fijado
 
@@ -20,8 +20,8 @@ Este repositorio contiene la base del Ciclo 1.
 5. Web: `http://localhost:4200`.
 
 El primer arranque puede tardar mientras el servicio web ejecuta `npm install`.
-El servicio `migrate` aplica todas las migraciones antes de iniciar el backend.
-El usuario administrador de desarrollo se crea con el seed descrito abajo.
+Los servicios `migrate` y `seed` aplican las migraciones y crean el usuario
+administrador de desarrollo antes de iniciar el backend.
 
 ## Comandos útiles
 
@@ -64,11 +64,34 @@ El seed crea los roles base y el administrador definido por
 `SEED_ADMIN_EMAIL` y `SEED_ADMIN_PASSWORD`. Solo se puede ejecutar con
 `APP_ENV=development`.
 
-El seed es idempotente: no duplica roles ni el administrador existente. No
-incluye datos ficticios de productos, proveedores o inventario.
+El seed es idempotente: no duplica roles, usuarios ni registros demo existentes.
 
-La implementacion del Ciclo 2 se documenta en `docs/cycle-2.md`. El bloque
-actual cubre inventario, reservas, atencion de reservas y temporadas/colecciones.
+En el entorno Docker de desarrollo también carga escenarios demo para el Ciclo
+2: sucursales, usuarios `CLIENT`, `BRANCH_MANAGER` y `CASHIER`, temporadas,
+colecciones, productos, variantes e inventario. Las credenciales demo son:
+
+```text
+client.demo@fashionstore.com / Client123!
+manager.demo@fashionstore.com / Manager123!
+cashier.demo@fashionstore.com / Cashier123!
+```
+
+El seed demo solo se ejecuta con `APP_ENV=development` y no reemplaza registros
+existentes.
+
+La implementación del Ciclo 2 se documenta en `docs/cycle-2.md`. Sus contratos,
+roles y criterios de aceptación están definidos en
+`docs/cycle-2-contracts.md`.
+
+La implementación ampliada del Ciclo 3 se documenta en `docs/cycle-3.md` y
+`docs/cycle-3-academic-report.md`. Incluye dashboard administrativo, reportes
+exportables en Excel/PDF/PowerPoint y un asistente de reportes basado en
+OpenAI Responses API con fallback local.
+
+La configuración del bridge MCP para Enterprise Architect y la guía para crear
+el modelo UML se encuentran en `antigravity.jsonc` y
+`docs/enterprise-architect-mcp.md`. El modelo previsto es
+`docs/uml/FashionStore.qea`.
 
 ## Desarrollo fuera de Docker
 

@@ -52,7 +52,7 @@ def list_seasons(db: Session, page: int, page_size: int, query: str | None) -> d
 
 
 def create_season(db: Session, data: SeasonCreateRequest) -> Season:
-    if db.scalar(select(Season.id).where(Season.name == data.name)):
+    if db.scalar(select(Season.id).where(func.lower(Season.name) == data.name.lower())):
         raise _conflict("La temporada ya está registrada.")
     season = Season(**data.model_dump())
     db.add(season)
@@ -66,7 +66,7 @@ def create_season(db: Session, data: SeasonCreateRequest) -> Season:
 
 def update_season(db: Session, season: Season, data: SeasonUpdateRequest) -> Season:
     values = data.model_dump(exclude_unset=True)
-    if values.get("name") and db.scalar(select(Season.id).where(Season.name == values["name"], Season.id != season.id)):
+    if values.get("name") and db.scalar(select(Season.id).where(func.lower(Season.name) == values["name"].lower(), Season.id != season.id)):
         raise _conflict("La temporada ya está registrada.")
     starts_on = values.get("starts_on", season.starts_on)
     ends_on = values.get("ends_on", season.ends_on)
@@ -110,7 +110,7 @@ def list_collections(db: Session, page: int, page_size: int, query: str | None, 
 
 def create_collection(db: Session, data: CollectionCreateRequest) -> Collection:
     _active_season(db, data.season_id)
-    if db.scalar(select(Collection.id).where(Collection.season_id == data.season_id, Collection.name == data.name)):
+    if db.scalar(select(Collection.id).where(Collection.season_id == data.season_id, func.lower(Collection.name) == data.name.lower())):
         raise _conflict("La colección ya está registrada para esa temporada.")
     collection = Collection(**data.model_dump())
     db.add(collection)
@@ -126,7 +126,7 @@ def update_collection(db: Session, collection: Collection, data: CollectionUpdat
     values = data.model_dump(exclude_unset=True)
     target_season_id = values.get("season_id", collection.season_id)
     _active_season(db, target_season_id)
-    if values.get("name") and db.scalar(select(Collection.id).where(Collection.season_id == target_season_id, Collection.name == values["name"], Collection.id != collection.id)):
+    if values.get("name") and db.scalar(select(Collection.id).where(Collection.season_id == target_season_id, func.lower(Collection.name) == values["name"].lower(), Collection.id != collection.id)):
         raise _conflict("La colección ya está registrada para esa temporada.")
     for field, value in values.items():
         setattr(collection, field, value)

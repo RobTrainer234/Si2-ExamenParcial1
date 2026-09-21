@@ -1,7 +1,8 @@
+from datetime import date
 from math import ceil
 
 from fastapi import HTTPException, status
-from sqlalchemy import distinct, func, or_, select
+from sqlalchemy import and_, distinct, func, or_, select
 from sqlalchemy.orm import Session, selectinload
 
 from app.core.models import Branch, Category, City, Collection, Color, Inventory, Product, ProductVariant, Season, Size
@@ -12,11 +13,17 @@ def _not_found() -> HTTPException:
 
 
 def _base_product_statement():
-    return select(Product).join(Category, Product.category_id == Category.id).where(Product.is_active.is_(True), Category.is_active.is_(True))
+    today = date.today()
+    current_season = or_(Season.id.is_(None), and_(Season.is_active.is_(True), Season.starts_on.is_(None) | (Season.starts_on <= today), Season.ends_on.is_(None) | (Season.ends_on >= today)))
+    current_collection = or_(Collection.id.is_(None), Collection.is_active.is_(True))
+    return select(Product).join(Category, Product.category_id == Category.id).outerjoin(Season, Product.season_id == Season.id).outerjoin(Collection, Product.collection_id == Collection.id).where(Product.is_active.is_(True), Category.is_active.is_(True), current_season, current_collection)
 
 
 def _base_count_statement():
-    return select(func.count(distinct(Product.id))).join(Category, Product.category_id == Category.id).where(Product.is_active.is_(True), Category.is_active.is_(True))
+    today = date.today()
+    current_season = or_(Season.id.is_(None), and_(Season.is_active.is_(True), Season.starts_on.is_(None) | (Season.starts_on <= today), Season.ends_on.is_(None) | (Season.ends_on >= today)))
+    current_collection = or_(Collection.id.is_(None), Collection.is_active.is_(True))
+    return select(func.count(distinct(Product.id))).join(Category, Product.category_id == Category.id).outerjoin(Season, Product.season_id == Season.id).outerjoin(Collection, Product.collection_id == Collection.id).where(Product.is_active.is_(True), Category.is_active.is_(True), current_season, current_collection)
 
 
 def _apply_filters(statement, count_statement, query: str | None, category_id: int | None, size_id: int | None, color_id: int | None, branch_id: int | None, audience: str | None, season_id: int | None, collection_id: int | None):
@@ -79,7 +86,7 @@ def catalog_filters(db: Session) -> dict[str, list[dict[str, object]]]:
     colors = db.scalars(select(Color).where(Color.is_active.is_(True)).order_by(Color.name)).all()
     branches = db.scalars(select(Branch).join(City).where(Branch.is_active.is_(True), City.is_active.is_(True)).order_by(Branch.name)).all()
     audience_names = {"WOMEN": "Mujer", "MEN": "Hombre", "UNISEX": "Unisex"}
-    audience_counts = dict(db.execute(select(Product.audience, func.count(Product.id)).join(Category).where(Product.is_active.is_(True), Category.is_active.is_(True)).group_by(Product.audience)).all())
+    audience_counts = dict(db.execute(select(Product.audience, func.count(Product.id)).select_from(_base_product_statement().subquery()).group_by(Product.audience)).all())
     return {
         "categories": [{"id": item.id, "name": item.name} for item in categories],
         "sizes": [{"id": item.id, "name": item.name, "size_type": item.size_type, "sort_order": item.sort_order} for item in sizes],
@@ -92,11 +99,13 @@ def catalog_filters(db: Session) -> dict[str, list[dict[str, object]]]:
 def catalog_navigation(db: Session) -> dict[str, object]:
     audience_names = {"WOMEN": "Mujer", "MEN": "Hombre", "UNISEX": "Unisex"}
     active_product = Product.is_active.is_(True)
-    active_category = Category.is_active.is_(True)
-    audience_counts = dict(db.execute(select(Product.audience, func.count(Product.id)).join(Category).where(active_product, active_category).group_by(Product.audience)).all())
-    category_rows = db.execute(select(Category.id, Category.name).join(Product).where(active_category, active_product).distinct().order_by(Category.name)).all()
-    season_rows = db.scalars(select(Season).where(Season.is_active.is_(True)).order_by(Season.starts_on.desc().nullslast(), Season.name)).all()
-    collection_rows = db.execute(select(Collection.id, Collection.season_id, Collection.name, func.count(Product.id)).join(Product, Product.collection_id == Collection.id, isouter=True).where(Collection.is_active.is_(True), (Product.id.is_(None) | active_product)).group_by(Collection.id).order_by(Collection.name)).all()
+    visible_products = _base_product_statement().subquery()
+    audience_counts = dict(db.execute(select(visible_products.c.audience, func.count(visible_products.c.id)).group_by(visible_products.c.audience)).all())
+    category_rows = db.execute(select(visible_products.c.category_id.label("id"), Category.name.label("name")).join(Category, Category.id == visible_products.c.category_id).distinct().order_by(Category.name)).all()
+    today = date.today()
+    current_season = Season.is_active.is_(True) & (Season.starts_on.is_(None) | (Season.starts_on <= today)) & (Season.ends_on.is_(None) | (Season.ends_on >= today))
+    season_rows = db.scalars(select(Season).where(current_season).order_by(Season.starts_on.desc().nullslast(), Season.name)).all()
+    collection_rows = db.execute(select(Collection.id, Collection.season_id, Collection.name, func.count(Product.id)).join(Season, Collection.season_id == Season.id).join(Product, Product.collection_id == Collection.id, isouter=True).where(Collection.is_active.is_(True), current_season, (Product.id.is_(None) | active_product)).group_by(Collection.id).order_by(Collection.name)).all()
     collections_by_season: dict[int, list[dict[str, object]]] = {}
     for collection_id, season_id, name, product_count in collection_rows:
         collections_by_season.setdefault(season_id, []).append({"id": collection_id, "name": name, "product_count": product_count})
@@ -146,6 +155,8 @@ def availability(db: Session, product_id: int, size_id: int, color_id: int) -> l
         select(Inventory, Branch, City)
         .join(ProductVariant, Inventory.product_variant_id == ProductVariant.id)
         .join(Product, ProductVariant.product_id == Product.id)
+        .outerjoin(Season, Product.season_id == Season.id)
+        .outerjoin(Collection, Product.collection_id == Collection.id)
         .join(Branch, Inventory.branch_id == Branch.id)
         .join(City, Branch.city_id == City.id)
         .where(
@@ -154,6 +165,8 @@ def availability(db: Session, product_id: int, size_id: int, color_id: int) -> l
             ProductVariant.size_id == size_id,
             ProductVariant.color_id == color_id,
             ProductVariant.is_active.is_(True),
+            or_(Season.id.is_(None), and_(Season.is_active.is_(True), Season.starts_on.is_(None) | (Season.starts_on <= date.today()), Season.ends_on.is_(None) | (Season.ends_on >= date.today()))),
+            or_(Collection.id.is_(None), Collection.is_active.is_(True)),
             Branch.is_active.is_(True),
             City.is_active.is_(True),
         )

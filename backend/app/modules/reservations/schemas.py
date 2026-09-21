@@ -49,6 +49,11 @@ class ReservationResponse(BaseModel):
     customer_name: str
     branch_id: int
     branch_name: str
+    branch_city_name: str | None = None
+    branch_address: str | None = None
+    branch_phone: str | None = None
+    branch_latitude: float | None = None
+    branch_longitude: float | None = None
     scheduled_for: datetime | None
     status: str
     notes: str | None

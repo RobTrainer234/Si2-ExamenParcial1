@@ -45,4 +45,10 @@ class CatalogRepository {
         .map((item) => AvailabilityItem.fromJson(item as Map<String, dynamic>))
         .toList();
   }
+
+  Future<List<Map<String, dynamic>>> getBranches() async {
+    final json = await _api.get('/catalog/filters') as Map<String, dynamic>;
+    final list = (json['branches'] as List<dynamic>?) ?? const [];
+    return list.map((b) => Map<String, dynamic>.from(b as Map)).toList();
+  }
 }

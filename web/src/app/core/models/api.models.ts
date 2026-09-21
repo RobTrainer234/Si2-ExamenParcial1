@@ -8,6 +8,7 @@ export interface UserSession {
   is_active: boolean;
   permissions?: string[];
   supplier_id?: number | null;
+  branches?: { id: number; name: string }[];
 }
 
 export interface SupplierPortalProduct { id: number; code: string; name: string; is_active: boolean; }

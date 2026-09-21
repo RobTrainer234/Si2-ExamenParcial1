@@ -44,6 +44,9 @@ class AuthController extends ChangeNotifier {
     } on ApiException catch (exception) {
       error = exception.message;
       return false;
+    } catch (e) {
+      error = 'Error al procesar la autenticación: $e';
+      return false;
     } finally {
       loading = false;
       notifyListeners();

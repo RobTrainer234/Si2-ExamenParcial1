@@ -15,10 +15,15 @@ from app.modules.inventory.router import router as inventory_router
 from app.modules.reservations.router import router as reservations_router
 from app.modules.commerce.router import router as commerce_router
 from app.modules.products.router import router as products_router
+from app.modules.promotions.router import router as promotions_router
+from app.modules.recommendations.router import router as recommendations_router
+from app.modules.reports.router import router as reports_router
 from app.modules.suppliers.router import router as suppliers_router
 from app.modules.seasons.router import router as seasons_router
 from app.modules.system.router import router as system_router
 from app.modules.users.router import router as users_router
+from app.modules.virtual_fitting.router import router as virtual_fitting_router, catalogo_vton_router
+from app.modules.ai_chat.router import router as ai_chat_router
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
 logger = logging.getLogger(__name__)
@@ -26,7 +31,7 @@ logger = logging.getLogger(__name__)
 app = FastAPI(
     title=settings.app_name,
     version="0.1.0",
-    description="API de FashionStore para el Ciclo 1.",
+    description="API de FashionStore para los ciclos 1 y 2.",
 )
 Path(settings.media_dir).mkdir(parents=True, exist_ok=True)
 app.mount("/media", StaticFiles(directory=settings.media_dir), name="media")
@@ -49,8 +54,14 @@ app.include_router(catalog_masters_router, prefix=settings.api_v1_prefix)
 app.include_router(suppliers_router, prefix=settings.api_v1_prefix)
 app.include_router(seasons_router, prefix=settings.api_v1_prefix)
 app.include_router(products_router, prefix=settings.api_v1_prefix)
+app.include_router(promotions_router, prefix=settings.api_v1_prefix)
 app.include_router(inventory_router, prefix=settings.api_v1_prefix)
 app.include_router(reservations_router, prefix=settings.api_v1_prefix)
 app.include_router(commerce_router, prefix=settings.api_v1_prefix)
+app.include_router(reports_router, prefix=settings.api_v1_prefix)
+app.include_router(recommendations_router, prefix=settings.api_v1_prefix)
+app.include_router(virtual_fitting_router, prefix=settings.api_v1_prefix)
+app.include_router(catalogo_vton_router, prefix=settings.api_v1_prefix)
 app.include_router(catalog_router, prefix=settings.api_v1_prefix)
+app.include_router(ai_chat_router, prefix=settings.api_v1_prefix)
 logger.info("FashionStore API started in %s environment", settings.app_env)

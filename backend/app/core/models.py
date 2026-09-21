@@ -372,7 +372,10 @@ class CartItem(Base):
 
 class Sale(Base):
     __tablename__ = "ventas"
-    __table_args__ = (Index("ix_sales_customer_created", "customer_id", "created_at"),)
+    __table_args__ = (
+        Index("ix_sales_customer_created", "customer_id", "created_at"),
+        CheckConstraint("fulfillment_type IN ('PICKUP', 'DELIVERY')", name="ck_sales_fulfillment_type"),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     order_number: Mapped[str] = mapped_column(String(30), unique=True, nullable=False, index=True)
@@ -382,6 +385,7 @@ class Sale(Base):
     reservation_id: Mapped[int | None] = mapped_column(ForeignKey("reservas.id", ondelete="RESTRICT"), index=True)
     channel: Mapped[str] = mapped_column(String(20), nullable=False)
     status: Mapped[str] = mapped_column(String(20), default="PENDING", nullable=False)
+    fulfillment_type: Mapped[str] = mapped_column(String(20), default="PICKUP", server_default="PICKUP", nullable=False)
     subtotal: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
     discount: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=0, nullable=False)
     total: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
@@ -390,6 +394,26 @@ class Sale(Base):
 
     items: Mapped[list["SaleItem"]] = relationship(back_populates="sale", cascade="all, delete-orphan")
     payments: Mapped[list["Payment"]] = relationship(back_populates="sale", cascade="all, delete-orphan")
+    shipping_snapshot: Mapped["SaleShippingSnapshot | None"] = relationship(back_populates="sale", cascade="all, delete-orphan", uselist=False)
+
+
+class SaleShippingSnapshot(Base):
+    __tablename__ = "envios_venta"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    sale_id: Mapped[int] = mapped_column(ForeignKey("ventas.id", ondelete="CASCADE"), unique=True, nullable=False, index=True)
+    recipient_name: Mapped[str] = mapped_column(String(120), nullable=False)
+    recipient_ci: Mapped[str] = mapped_column(String(30), nullable=False)
+    recipient_phone: Mapped[str] = mapped_column(String(30), nullable=False)
+    department_or_city: Mapped[str] = mapped_column(String(100), nullable=False)
+    zone: Mapped[str] = mapped_column(String(120), nullable=False)
+    street: Mapped[str] = mapped_column(String(150), nullable=False)
+    house_number: Mapped[str] = mapped_column(String(50), nullable=False)
+    reference: Mapped[str] = mapped_column(String(255), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    sale: Mapped[Sale] = relationship(back_populates="shipping_snapshot")
 
 
 class SaleItem(Base):
@@ -426,6 +450,8 @@ class Payment(Base):
     transaction_reference: Mapped[str | None] = mapped_column(String(150))
     status: Mapped[str] = mapped_column(String(20), default="PENDING", nullable=False)
     amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
+    received_amount: Mapped[Decimal | None] = mapped_column(Numeric(12, 2))
+    change_amount: Mapped[Decimal | None] = mapped_column(Numeric(12, 2))
     metadata_json: Mapped[dict | None] = mapped_column(JSON)
     paid_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
@@ -438,6 +464,7 @@ class InventoryMovement(Base):
     __table_args__ = (
         CheckConstraint("quantity > 0", name="ck_inventory_movement_quantity_positive"),
         CheckConstraint("stock_before >= 0 AND stock_after >= 0", name="ck_inventory_movement_stock_nonnegative"),
+        CheckConstraint("movement_type IN ('IN', 'OUT', 'RETURN', 'RESERVE', 'RELEASE', 'SALE')", name="ck_inventory_movement_type_valid"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -496,6 +523,8 @@ class VirtualFittingSession(Base):
     device_info: Mapped[str | None] = mapped_column(String(255))
     started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    product: Mapped[Product] = relationship()
 
 
 class AIRecommendation(Base):

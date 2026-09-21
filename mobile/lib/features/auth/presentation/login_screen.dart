@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/providers.dart';
+import '../../../core/theme/app_theme.dart';
+import '../../../shared/fashion_ui.dart';
 import 'register_screen.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
@@ -33,83 +35,73 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   Widget build(BuildContext context) {
     final auth = ref.watch(authControllerProvider);
     return Scaffold(
-      body: Center(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(28),
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 440),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'FASHIONSTORE',
-                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                    letterSpacing: 3,
-                    color: Theme.of(context).colorScheme.primary,
+      body: SafeArea(
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(AppSpacing.lg),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 460),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const FashionSectionHeader(
+                    eyebrow: 'FashionStore',
+                    title: 'Tu guardarropa empieza acá.',
+                    body:
+                        'Ingresá para reservar prendas, recibir recomendaciones y comprar con retiro en tienda.',
                   ),
-                ),
-                const SizedBox(height: 25),
-                Text(
-                  'Tu estilo,\na tu manera.',
-                  style: Theme.of(context).textTheme.displaySmall?.copyWith(
-                    fontWeight: FontWeight.w300,
+                  const SizedBox(height: AppSpacing.xl),
+                  TextField(
+                    controller: email,
+                    keyboardType: TextInputType.emailAddress,
+                    textInputAction: TextInputAction.next,
+                    decoration: const InputDecoration(
+                      labelText: 'Correo electrónico',
+                      prefixIcon: Icon(Icons.mail_outline),
+                    ),
                   ),
-                ),
-                const SizedBox(height: 12),
-                const Text(
-                  'Inicia sesión para explorar prendas disponibles cerca de ti.',
-                ),
-                const SizedBox(height: 36),
-                TextField(
-                  controller: email,
-                  keyboardType: TextInputType.emailAddress,
-                  decoration: const InputDecoration(
-                    labelText: 'Correo electrónico',
-                    border: OutlineInputBorder(),
+                  const SizedBox(height: AppSpacing.md),
+                  TextField(
+                    controller: password,
+                    obscureText: true,
+                    onSubmitted: (_) => submit(),
+                    decoration: const InputDecoration(
+                      labelText: 'Contraseña',
+                      prefixIcon: Icon(Icons.lock_outline),
+                    ),
                   ),
-                ),
-                const SizedBox(height: 14),
-                TextField(
-                  controller: password,
-                  obscureText: true,
-                  decoration: const InputDecoration(
-                    labelText: 'Contraseña',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                if (auth.error != null)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 14),
-                    child: Text(
-                      auth.error!,
-                      style: TextStyle(
-                        color: Theme.of(context).colorScheme.error,
+                  if (auth.error != null) ...[
+                    const SizedBox(height: AppSpacing.md),
+                    FashionMessageCard(
+                      message: auth.error!,
+                      icon: Icons.info_outline,
+                    ),
+                  ],
+                  const SizedBox(height: AppSpacing.lg),
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton(
+                      onPressed: auth.loading ? null : submit,
+                      child: Text(
+                        auth.loading ? 'Ingresando...' : 'Iniciar sesión',
                       ),
                     ),
                   ),
-                const SizedBox(height: 22),
-                SizedBox(
-                  width: double.infinity,
-                  child: FilledButton(
-                    onPressed: auth.loading ? null : submit,
-                    child: Text(
-                      auth.loading ? 'Ingresando...' : 'Iniciar sesión',
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 14),
-                Center(
-                  child: TextButton(
-                    onPressed: () => Navigator.push(
-                      context,
-                      MaterialPageRoute<void>(
-                        builder: (_) => const RegisterScreen(),
+                  const SizedBox(height: AppSpacing.sm),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.push(
+                        context,
+                        MaterialPageRoute<void>(
+                          builder: (_) => const RegisterScreen(),
+                        ),
                       ),
+                      child: const Text('Crear una cuenta'),
                     ),
-                    child: const Text('Crear una cuenta'),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),

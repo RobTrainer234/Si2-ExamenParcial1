@@ -1,3 +1,5 @@
+import '../../../core/config/app_config.dart';
+
 class CatalogItem {
   const CatalogItem({
     required this.id,
@@ -17,7 +19,7 @@ class CatalogItem {
     name: json['name'] as String,
     categoryName: json['category_name'] as String,
     price: double.parse('${json['price']}'),
-    imageUrl: json['image_url'] as String?,
+    imageUrl: AppConfig.resolveImageUrl(json['image_url'] as String?),
   );
 }
 
@@ -63,21 +65,31 @@ class CatalogDetail extends CatalogItem {
   final String? description;
   final List<CatalogVariant> variants;
 
-  factory CatalogDetail.fromJson(Map<String, dynamic> json) => CatalogDetail(
-    id: json['id'] as int,
-    name: json['name'] as String,
-    categoryName: json['category_name'] as String,
-    price: double.parse('${json['price']}'),
-    description: json['description'] as String?,
-    variants: (json['variants'] as List<dynamic>)
-        .map((item) => CatalogVariant.fromJson(item as Map<String, dynamic>))
-        .toList(),
-    imageUrl: (json['images'] as List<dynamic>).isEmpty
-        ? null
-        : ((json['images'] as List<dynamic>).first
-                  as Map<String, dynamic>)['image_url']
-              as String?,
-  );
+  factory CatalogDetail.fromJson(Map<String, dynamic> json) {
+    final imagesList = (json['images'] as List<dynamic>?) ?? [];
+    String? primaryUrl;
+    if (imagesList.isNotEmpty) {
+      final primary = imagesList.firstWhere(
+        (img) => (img as Map<String, dynamic>)['is_primary'] == true,
+        orElse: () => imagesList.first,
+      ) as Map<String, dynamic>;
+      primaryUrl = primary['image_url'] as String?;
+    } else {
+      primaryUrl = json['image_url'] as String?;
+    }
+
+    return CatalogDetail(
+      id: json['id'] as int,
+      name: json['name'] as String,
+      categoryName: json['category_name'] as String,
+      price: double.parse('${json['price']}'),
+      description: json['description'] as String?,
+      variants: (json['variants'] as List<dynamic>)
+          .map((item) => CatalogVariant.fromJson(item as Map<String, dynamic>))
+          .toList(),
+      imageUrl: AppConfig.resolveImageUrl(primaryUrl),
+    );
+  }
 }
 
 class AvailabilityItem {

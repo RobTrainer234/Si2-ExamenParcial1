@@ -29,6 +29,10 @@ export class AuthService {
     if (refreshToken) {
       this.http.post<void>(`${appConfig.apiBaseUrl}/auth/logout`, { refresh_token: refreshToken }).subscribe({ error: () => undefined });
     }
+    this.clearSession();
+  }
+
+  clearSession(): void {
     localStorage.removeItem(SESSION_KEY);
     this.sessionState.set(null);
   }

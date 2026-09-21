@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/providers.dart';
+import '../../../core/theme/app_theme.dart';
+import '../../../shared/fashion_ui.dart';
 import '../data/catalog_models.dart';
 import 'product_detail_screen.dart';
 
@@ -51,7 +53,7 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen> {
       if (mounted) {
         setState(() {
           loading = false;
-          error = 'No se pudo cargar el catálogo.';
+          error = 'No pudimos cargar el catálogo en este momento.';
         });
       }
     }
@@ -60,70 +62,64 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen> {
   @override
   Widget build(BuildContext context) {
     final auth = ref.watch(authControllerProvider);
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('FASHIONSTORE', style: TextStyle(fontSize: 16, letterSpacing: 2, fontWeight: FontWeight.w700)),
-        actions: [
-          IconButton(
-            onPressed: auth.logout,
-            icon: const Icon(Icons.logout),
-            tooltip: 'Cerrar sesión',
+    return RefreshIndicator(
+      onRefresh: load,
+      child: CustomScrollView(
+        slivers: [
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 18, 20, 8),
+              child: _header(
+                context,
+                auth.session?.user['first_name'] as String?,
+              ),
+            ),
           ),
-        ],
-      ),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: 0,
-        onDestinationSelected: (_) {},
-        destinations: const [
-          NavigationDestination(icon: Icon(Icons.auto_awesome_outlined), label: 'Catálogo'),
-          NavigationDestination(icon: Icon(Icons.storefront_outlined), label: 'Tiendas'),
-          NavigationDestination(icon: Icon(Icons.favorite_border), label: 'Favoritos'),
-          NavigationDestination(icon: Icon(Icons.person_outline), label: 'Perfil'),
-        ],
-      ),
-      body: RefreshIndicator(
-        onRefresh: load,
-        child: CustomScrollView(
-          slivers: [
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 22, 20, 10),
-                child: _header(
-                  context,
-                  auth.session?.user['first_name'] as String?,
+          if (loading)
+            const SliverFillRemaining(
+              child: FashionState(
+                icon: Icons.checkroom_outlined,
+                title: 'Curando la colección',
+                message:
+                    'Un momento mientras preparamos las prendas disponibles.',
+              ),
+            )
+          else if (error != null)
+            SliverFillRemaining(
+              child: FashionState(
+                icon: Icons.wifi_off_outlined,
+                title: 'No conectamos con el showroom',
+                message: error!,
+              ),
+            )
+          else if (items.isEmpty)
+            const SliverFillRemaining(
+              child: FashionState(
+                icon: Icons.search_off_outlined,
+                title: 'Sin prendas para mostrar',
+                message:
+                    'Probá con otra búsqueda o volvé a explorar la colección completa.',
+              ),
+            )
+          else
+            SliverPadding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+              sliver: SliverGrid(
+                delegate: SliverChildBuilderDelegate(
+                  _productCard,
+                  childCount: items.length,
+                ),
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 2,
+                  crossAxisSpacing: 12,
+                  mainAxisSpacing: 18,
+                  childAspectRatio: .62,
                 ),
               ),
             ),
-            if (loading)
-              const SliverFillRemaining(
-                child: Center(child: CircularProgressIndicator()),
-              )
-            else if (error != null)
-              SliverFillRemaining(child: Center(child: Text(error!)))
-            else if (items.isEmpty)
-              const SliverFillRemaining(
-                child: Center(child: Text('No encontramos prendas.')),
-              )
-            else
-              SliverPadding(
-                padding: const EdgeInsets.all(16),
-                sliver: SliverGrid(
-                  delegate: SliverChildBuilderDelegate(
-                    _productCard,
-                    childCount: items.length,
-                  ),
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 2,
-                    crossAxisSpacing: 12,
-                    mainAxisSpacing: 18,
-                    childAspectRatio: .68,
-                  ),
-                ),
-              ),
-            if (!loading && totalPages > 1)
-              SliverToBoxAdapter(child: _pagination()),
-          ],
-        ),
+          if (!loading && totalPages > 1)
+            SliverToBoxAdapter(child: _pagination()),
+        ],
       ),
     );
   }
@@ -131,23 +127,13 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen> {
   Widget _header(BuildContext context, String? firstName) => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
-      Text(
-        'HOLA, ${(firstName ?? 'CLIENTE').toUpperCase()}',
-        style: Theme.of(context).textTheme.labelSmall?.copyWith(
-          letterSpacing: 2,
-          color: Theme.of(context).colorScheme.primary,
-        ),
+      FashionSectionHeader(
+        eyebrow: 'Hola, ${firstName ?? 'cliente'}',
+        title: 'Elegí tu próxima pieza.',
+        body:
+            'Catálogo editorial con disponibilidad para reserva, carrito y vestidor virtual.',
       ),
-      const SizedBox(height: 8),
-      Text(
-        'Encuentra tu\npróxima prenda.',
-        style: Theme.of(
-          context,
-        ).textTheme.headlineLarge?.copyWith(fontWeight: FontWeight.w300),
-      ),
-      const SizedBox(height: 10),
-      const Text('NUEVA COLECCIÓN · OTOÑO 2024', style: TextStyle(fontSize: 10, letterSpacing: 1.4, color: Color(0xffc35f43))),
-      const SizedBox(height: 22),
+      const SizedBox(height: AppSpacing.lg),
       TextField(
         controller: search,
         onSubmitted: (_) {
@@ -155,7 +141,7 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen> {
           load();
         },
         decoration: InputDecoration(
-          hintText: 'Buscar prendas...',
+          hintText: 'Buscar vestido, saco, color...',
           prefixIcon: const Icon(Icons.search),
           suffixIcon: IconButton(
             onPressed: () {
@@ -163,16 +149,17 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen> {
               load();
             },
             icon: const Icon(Icons.arrow_forward),
+            tooltip: 'Buscar',
           ),
         ),
       ),
-      const SizedBox(height: 12),
     ],
   );
 
   Widget _productCard(BuildContext context, int index) {
     final item = items[index];
     return InkWell(
+      borderRadius: BorderRadius.circular(AppRadii.lg),
       onTap: () => Navigator.push(
         context,
         MaterialPageRoute<void>(
@@ -182,37 +169,57 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-           Expanded(
-             child: Stack(
-               children: [
-                 Container(
-                   color: const Color(0xffebe6de),
-                   child: item.imageUrl == null
-                       ? const Center(child: Icon(Icons.checkroom, size: 45, color: Colors.black26))
-                       : Image.network(
-                           item.imageUrl!,
-                           fit: BoxFit.cover,
-                           width: double.infinity,
-                           errorBuilder: (_, _, _) => const Icon(Icons.checkroom, size: 45, color: Colors.black26),
-                         ),
-                 ),
-                 Positioned(top: 8, left: 8, child: Container(color: const Color(0xddf6f3ee), padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4), child: const Text('NUEVO', style: TextStyle(fontSize: 9, letterSpacing: 1)))),
-                 const Positioned(top: 6, right: 6, child: Icon(Icons.favorite_border, size: 19)),
-               ],
-             ),
-           ),
-          const SizedBox(height: 8),
-          Text(
-            item.categoryName.toUpperCase(),
-            style: Theme.of(context).textTheme.labelSmall?.copyWith(
-              letterSpacing: 1,
-              color: Theme.of(context).colorScheme.primary,
+          Expanded(
+            child: Stack(
+              children: [
+                Positioned.fill(
+                  child: FashionImageFrame(imageUrl: item.imageUrl),
+                ),
+                const Positioned(
+                  top: 10,
+                  left: 10,
+                  child: StatusPill(label: 'Nuevo', tone: StatusTone.warning),
+                ),
+                Positioned(
+                  right: 10,
+                  top: 10,
+                  child: Container(
+                    width: 36,
+                    height: 36,
+                    decoration: const BoxDecoration(
+                      color: AppColors.parchment,
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.favorite_border, size: 19),
+                  ),
+                ),
+              ],
             ),
           ),
-          Text(item.name, maxLines: 1, overflow: TextOverflow.ellipsis),
+          const SizedBox(height: AppSpacing.sm),
+          Text(
+            item.categoryName.toUpperCase(),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+              color: AppColors.goldDeep,
+              fontSize: 10,
+            ),
+          ),
+          const SizedBox(height: 3),
+          Text(
+            item.name,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.titleSmall,
+          ),
+          const SizedBox(height: 4),
           Text(
             '${item.price.toStringAsFixed(2)} BOB',
-            style: const TextStyle(fontWeight: FontWeight.bold),
+            style: Theme.of(context).textTheme.titleSmall?.copyWith(
+              color: AppColors.charcoal,
+              fontWeight: FontWeight.w800,
+            ),
           ),
         ],
       ),
@@ -220,11 +227,11 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen> {
   }
 
   Widget _pagination() => Padding(
-    padding: const EdgeInsets.symmetric(vertical: 20),
+    padding: const EdgeInsets.only(bottom: AppSpacing.lg),
     child: Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        IconButton(
+        IconButton.filledTonal(
           onPressed: page > 1
               ? () {
                   page--;
@@ -233,8 +240,11 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen> {
               : null,
           icon: const Icon(Icons.chevron_left),
         ),
-        Text('$page / $totalPages'),
-        IconButton(
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+          child: StatusPill(label: '$page / $totalPages'),
+        ),
+        IconButton.filledTonal(
           onPressed: page < totalPages
               ? () {
                   page++;
