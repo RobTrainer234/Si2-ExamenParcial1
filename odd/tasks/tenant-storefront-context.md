@@ -4,7 +4,7 @@
 Allow a customer to enter the shared FashionStore Web/mobile experience in the context of a specific subscribing store (for example, Auro), recognize that store before logging in, and keep catalog, cart, branch, and purchase operations isolated to that tenant.
 
 ## Status
-Planning / awaiting product decision on customer identity scope. No source changes have started.
+Product decision resolved; implementation is blocked before the first source edit because the required bounded writer skill path is unavailable. No source changes have started.
 
 ## Accepted direction
 - One shared FashionStore mobile app and Web application, not a separately published app per tenant.
@@ -14,14 +14,12 @@ Planning / awaiting product decision on customer identity scope. No source chang
 - Path-based store links are the initial recommendation; custom domains and per-tenant app-store packages are out of initial scope.
 
 ## Decision gate
-Choose how customer identity works across stores:
-1. **Tenant-scoped customer accounts (recommended for the first release):** the same email may have a separate account per tenant; the store slug selects which account/login context is used; cart, history, reservations, and offline state stay separate.
-2. **One global FashionStore customer account:** a single identity accesses multiple stores through tenant memberships; this requires a broader identity/membership and data-boundary design.
+**Resolved by the user:** use tenant-scoped customer accounts. The same email may have a separate account per tenant; the store slug selects which account/login context is used; cart, history, reservations, and offline state stay separate. A global FashionStore identity with cross-tenant memberships is out of scope for this first release.
 
-Do not implement login/registration until this is decided. Current database uniqueness is already `(tenant_id, email)`, while public registration currently creates a global `CLIENT` with `tenant_id = NULL` and login selects by email without a tenant selector.
+Current database uniqueness is already `(tenant_id, email)`, while public registration currently creates a global `CLIENT` with `tenant_id = NULL` and login selects by email without a tenant selector.
 
 ## Tasks
-- [ ] 1. Confirm customer identity scope and storefront-entry contract (currently awaiting user answer).
+- [x] 1. Confirm customer identity scope and storefront-entry contract (user selected tenant-scoped customer accounts; store/branch QR behavior accepted as planned).
 - [ ] 2. Add a unique public tenant slug and minimal public store identity/branding fields; create a migration and tests, but do not apply the migration.
 - [ ] 3. Add public tenant/branch resolution, tenant-scoped anonymous catalog access, and tenant-aware customer registration/login. Validate all branch/product/cart/checkout operations against the resolved tenant; invalid or inactive stores must fail closed rather than fall back to a global catalog.
 - [ ] 4. Add Web store routes that preserve the tenant slug, resolve public identity before rendering, show the store name prominently for anonymous and authenticated visitors, and preserve context through login, catalog, cart, and checkout.
