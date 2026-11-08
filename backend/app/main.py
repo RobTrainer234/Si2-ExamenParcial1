@@ -24,6 +24,8 @@ from app.modules.system.router import router as system_router
 from app.modules.users.router import router as users_router
 from app.modules.virtual_fitting.router import router as virtual_fitting_router, catalogo_vton_router
 from app.modules.ai_chat.router import router as ai_chat_router
+from app.modules.subscriptions.router import router as subscriptions_router, platform_router as platform_subscriptions_router
+from app.modules.sync.router import router as sync_router
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
 logger = logging.getLogger(__name__)
@@ -64,4 +66,7 @@ app.include_router(virtual_fitting_router, prefix=settings.api_v1_prefix)
 app.include_router(catalogo_vton_router, prefix=settings.api_v1_prefix)
 app.include_router(catalog_router, prefix=settings.api_v1_prefix)
 app.include_router(ai_chat_router, prefix=settings.api_v1_prefix)
+app.include_router(subscriptions_router, prefix=settings.api_v1_prefix)
+app.include_router(platform_subscriptions_router, prefix=settings.api_v1_prefix)
+app.include_router(sync_router, prefix=settings.api_v1_prefix)
 logger.info("FashionStore API started in %s environment", settings.app_env)

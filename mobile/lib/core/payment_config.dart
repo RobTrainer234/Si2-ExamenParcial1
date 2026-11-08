@@ -1,7 +1,7 @@
-enum PaymentProvider { stripeTest, sandboxDemo }
+enum PaymentProvider { stripe, sandboxDemo }
 
 class PaymentConfig {
-  static const provider = PaymentProvider.stripeTest;
+  static const provider = PaymentProvider.stripe;
   static const publishableKey = String.fromEnvironment(
     'STRIPE_PUBLISHABLE_KEY',
   );

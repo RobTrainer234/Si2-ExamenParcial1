@@ -36,3 +36,25 @@ stitch_fashionstore_platform_ui/
 docs/esquema_generado.sql
 # Local Pi runtime state
 .atl/
+
+# Local agent & scratch files
+scratch/
+test-results/
+.codegraph/
+.claude/
+.agents/
+.pi/
+antigravity.jsonc
+pdf_text_dump.txt
+test_out.docx
+nul
+backups/
+skills-lock.json
+
+# Temporary root backups & oversized presentation
+*_backup.docx
+*_pre_*.docx
+Grupo #6*.docx
+*.pdf
+
+

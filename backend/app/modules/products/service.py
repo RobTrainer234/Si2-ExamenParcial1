@@ -162,9 +162,28 @@ def _validate_season_collection(db: Session, season_id: int | None, collection_i
             raise _error("COLLECTION_SEASON_MISMATCH", "La colección no pertenece a la temporada seleccionada.", status.HTTP_400_BAD_REQUEST)
 
 
+def _tenant_condition(column: object, tenant_id: int | None):
+    return column.is_(None) if tenant_id is None else column == tenant_id
+
+
+def _ensure_unique_product_keys(db: Session, tenant_id: int | None, code: str | None, slug: str | None, exclude_product_id: int | None = None) -> None:
+    if code is not None:
+        statement = select(Product.id).where(_tenant_condition(Product.tenant_id, tenant_id), Product.code == code)
+        if exclude_product_id is not None:
+            statement = statement.where(Product.id != exclude_product_id)
+        if db.scalar(statement):
+            raise _conflict("El código o slug ya existe.")
+    if slug is not None:
+        statement = select(Product.id).where(_tenant_condition(Product.tenant_id, tenant_id), Product.slug == slug)
+        if exclude_product_id is not None:
+            statement = statement.where(Product.id != exclude_product_id)
+        if db.scalar(statement):
+            raise _conflict("El código o slug ya existe.")
+
+
 def _add_relations(db: Session, product: Product, variants: list[VariantInput], images: list[ImageInput], supplier_ids: list[int]) -> None:
     for variant in variants:
-        product.variants.append(ProductVariant(size_id=variant.size_id, color_id=variant.color_id, sku=variant.sku, is_active=variant.is_active))
+        product.variants.append(ProductVariant(tenant_id=product.tenant_id, size_id=variant.size_id, color_id=variant.color_id, sku=variant.sku, is_active=variant.is_active))
     for image in images:
         product.images.append(ProductImage(image_url=str(image.image_url), is_primary=image.is_primary, sort_order=image.sort_order))
     for supplier_id in supplier_ids:
@@ -181,7 +200,12 @@ def create_product(db: Session, data: ProductCreateRequest) -> Product:
         raise _conflict("Un producto no puede tener más de una imagen principal.")
     if len({image.sort_order for image in data.images}) != len(data.images):
         raise _conflict("El orden de las imágenes no puede repetirse.")
-    product = Product(category_id=data.category_id, season_id=data.season_id, collection_id=data.collection_id, audience=data.audience, size_system=data.size_system, code=data.code, name=data.name, slug=data.slug, description=data.description, price=data.price)
+    tenant_id = db.info.get("tenant_id")
+    _ensure_unique_product_keys(db, tenant_id, data.code, data.slug)
+    incoming_skus = [variant.sku for variant in variants if variant.sku]
+    if incoming_skus and db.scalar(select(ProductVariant.id).where(_tenant_condition(ProductVariant.tenant_id, tenant_id), ProductVariant.sku.in_(incoming_skus))):
+        raise _conflict("El código, slug, SKU o relación indicada ya existe.")
+    product = Product(tenant_id=tenant_id, category_id=data.category_id, season_id=data.season_id, collection_id=data.collection_id, audience=data.audience, size_system=data.size_system, code=data.code, name=data.name, slug=data.slug, description=data.description, price=data.price)
     db.add(product)
     try:
         db.flush()
@@ -205,6 +229,7 @@ def update_product(db: Session, product: Product, data: ProductUpdateRequest) ->
         product.suppliers.extend(ProductSupplier(supplier_id=supplier_id) for supplier_id in values.pop("supplier_ids") or [])
     if "size_system" in values:
         _active_sizes_colors(db, [VariantInput(size_id=variant.size_id, color_id=variant.color_id, sku=variant.sku, is_active=variant.is_active) for variant in product.variants], values["size_system"])
+    _ensure_unique_product_keys(db, product.tenant_id, values.get("code"), values.get("slug"), exclude_product_id=product.id)
     for field, value in values.items():
         setattr(product, field, value)
     try:
@@ -227,11 +252,11 @@ def add_variant(db: Session, product: Product, data: VariantInput) -> Product:
         product.size_system = selected_size.size_type
     _active_sizes_colors(db, [data], product.size_system)
     data = _materialize_variant_skus(db, product.code, [data])[0]
-    if db.scalar(select(ProductVariant.id).where(ProductVariant.sku == data.sku)):
+    if db.scalar(select(ProductVariant.id).where(_tenant_condition(ProductVariant.tenant_id, product.tenant_id), ProductVariant.sku == data.sku)):
         raise _conflict("El SKU ya está registrado.")
     if db.scalar(select(ProductVariant.id).where(ProductVariant.product_id == product.id, ProductVariant.size_id == data.size_id, ProductVariant.color_id == data.color_id)):
         raise _conflict("La combinación de talla y color ya existe para el producto.")
-    product.variants.append(ProductVariant(size_id=data.size_id, color_id=data.color_id, sku=data.sku, is_active=data.is_active))
+    product.variants.append(ProductVariant(tenant_id=product.tenant_id, size_id=data.size_id, color_id=data.color_id, sku=data.sku, is_active=data.is_active))
     try:
         db.flush()
     except IntegrityError as exc:
@@ -255,10 +280,10 @@ def add_variants_bulk(db: Session, product: Product, variants: list[VariantInput
     incoming_skus = [item.sku for item in variants]
     if len(incoming_attributes) != len(set(incoming_attributes)) or any(item in existing_attributes for item in incoming_attributes):
         raise _conflict("Una o más combinaciones de talla y color ya existen para el producto.")
-    if len(incoming_skus) != len(set(incoming_skus)) or any(item in existing_skus for item in incoming_skus) or db.scalar(select(ProductVariant.id).where(ProductVariant.sku.in_(incoming_skus))):
+    if len(incoming_skus) != len(set(incoming_skus)) or any(item in existing_skus for item in incoming_skus) or db.scalar(select(ProductVariant.id).where(_tenant_condition(ProductVariant.tenant_id, product.tenant_id), ProductVariant.sku.in_(incoming_skus))):
         raise _conflict("Uno o más SKU ya están registrados.")
     for variant in variants:
-        product.variants.append(ProductVariant(size_id=variant.size_id, color_id=variant.color_id, sku=variant.sku, is_active=variant.is_active))
+        product.variants.append(ProductVariant(tenant_id=product.tenant_id, size_id=variant.size_id, color_id=variant.color_id, sku=variant.sku, is_active=variant.is_active))
     try:
         db.flush()
     except IntegrityError as exc:

@@ -5,9 +5,9 @@ import 'package:google_mlkit_pose_detection/google_mlkit_pose_detection.dart';
 
 class PoseDetectorService {
   PoseDetectorService()
-      : _detector = PoseDetector(
-          options: PoseDetectorOptions(mode: PoseDetectionMode.stream),
-        );
+    : _detector = PoseDetector(
+        options: PoseDetectorOptions(mode: PoseDetectionMode.stream),
+      );
 
   final PoseDetector _detector;
   bool _busy = false;
@@ -20,8 +20,12 @@ class PoseDetectorService {
       for (final plane in image.planes) {
         bytes.putUint8List(plane.bytes);
       }
-      final rotation = InputImageRotationValue.fromRawValue(camera.sensorOrientation) ?? InputImageRotation.rotation0deg;
-      final format = InputImageFormatValue.fromRawValue(image.format.raw) ?? InputImageFormat.nv21;
+      final rotation =
+          InputImageRotationValue.fromRawValue(camera.sensorOrientation) ??
+          InputImageRotation.rotation0deg;
+      final format =
+          InputImageFormatValue.fromRawValue(image.format.raw) ??
+          InputImageFormat.nv21;
       final input = InputImage.fromBytes(
         bytes: bytes.done().buffer.asUint8List(),
         metadata: InputImageMetadata(

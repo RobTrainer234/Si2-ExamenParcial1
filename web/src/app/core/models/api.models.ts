@@ -1,5 +1,7 @@
 export interface UserSession {
   id: number;
+  tenant_id?: number | null;
+  tenant?: { id: number; name: string; status: string } | null;
   first_name: string;
   last_name: string;
   email: string;

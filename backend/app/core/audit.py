@@ -16,8 +16,15 @@ def record_audit(
     *,
     old_values: Mapping[str, object] | None = None,
     new_values: Mapping[str, object] | None = None,
+    tenant_id: int | None = None,
 ) -> Bitacora:
+    resolved_tenant_id = (
+        tenant_id
+        if tenant_id is not None
+        else (user.tenant_id if user is not None else db.info.get("tenant_id"))
+    )
     entry = Bitacora(
+        tenant_id=resolved_tenant_id,
         user_id=user.id if user else None,
         action=action,
         entity_type=entity_type,

@@ -1,0 +1,57 @@
+strict_tdd: true
+context: |
+  fashionstore-web is a Node.js/TypeScript, Node.js/TypeScript ESM, Python project.
+  Detected markers: web/package.json, web/tsconfig.json, web/npm package manager, web\.angular\cache\21.0.0\fashionstore-web\vite\deps/package.json, web\.angular\cache\21.0.0\fashionstore-web\vite\deps/npm package manager.
+  Package managers: npm.
+  Additional evidence: Test-like files detected (32); examples: docs\uml\diagrams\uml-2.5---fashionstore---use-case-test.png, docs\uml\diagrams\uml25-use-case-test.png, docs\uml\examples\uml25-use-case-test.json, mobile\test\api_client_test.dart, mobile\test\auth_controller_test.dart.
+  Primary test command: cd web && npm test.
+  Unit tests: Vitest (cd web && npm test).
+  Integration tests: none.
+  E2E tests: Playwright (cd web && npm run e2e).
+rules:
+  proposal:
+    require_problem_statement: true
+  spec:
+    require_acceptance_criteria: true
+  design:
+    require_tradeoffs: true
+  tasks:
+    protect_review_workload: true
+  apply:
+    test_command: "cd web && npm test"
+  verify:
+    test_command: "cd web && npm test"
+testing:
+  detected: "2026-10-23"
+  runner:
+    command: "cd web && npm test"
+    framework: "Vitest"
+  layers:
+    unit: "Vitest"
+    integration: ""
+    e2e: "Playwright"
+  commands:
+    unit:
+      - scope: "web"
+        command: "cd web && npm test"
+        framework: "Vitest"
+    integration:
+      []
+    e2e:
+      - scope: "web"
+        command: "cd web && npm run e2e"
+        framework: "Playwright"
+  coverage:
+    command: ""
+    commands:
+      []
+quality:
+  lint: ""
+  lint_commands:
+    []
+  typecheck: ""
+  typecheck_commands:
+    []
+  format: ""
+  format_commands:
+    []

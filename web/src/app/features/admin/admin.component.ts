@@ -5,7 +5,7 @@ import { FormsModule, FormBuilder, ReactiveFormsModule, Validators } from '@angu
 import { RouterLink } from '@angular/router';
 
 import { AdminService } from '../../core/admin/admin.service';
-import { AdminUser, Branch, Category, City, Collection, Color, ImageInput, InventoryRow, ProductDetail, ProductSummary, Season, Size, SizeSystem, Supplier, SupplyOffer, SupplyStatus } from '../../core/models/admin.models';
+import { AdminUser, Branch, Category, City, Collection, Color, ImageInput, InventoryRow, ProductDetail, ProductSummary, Season, Size, SizeSystem, SubscriptionCurrentStatus, Supplier, SupplyOffer, SupplyStatus } from '../../core/models/admin.models';
 import { PasswordRequirementsComponent } from '../../core/auth/password-requirements.component';
 import { generateSecurePassword, passwordPolicyValidator } from '../../core/auth/password-security.helper';
 
@@ -33,6 +33,54 @@ type SizeMetadata = { size_type: SizeSystem; sort_order: number };
       </aside>
       <section class="admin-content">
         @if (error) { <p class="error admin-alert">{{ error }}</p> }
+        @if (subscriptionNotice) { <p class="admin-alert" style="background:#edf7f1;color:#14532d;border:1px solid #bbf7d0;">{{ subscriptionNotice }}</p> }
+        @if (subscriptionStatus) {
+          <div class="admin-panel" style="margin-bottom:1.25rem;padding:1rem 1.25rem;border:1px solid rgba(25,28,31,0.12);display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:1rem;">
+            <div>
+              <span class="panel-index">{{ subscriptionStatus.is_trial ? 'PRUEBA EMPRESARIAL · 14 DÍAS' : 'SUSCRIPCIÓN SAAS' }}</span>
+              <h3 style="margin:0.2rem 0;font-size:1.05rem;">
+                {{ subscriptionStatus.plan?.name || 'Plan Básico' }}
+                @if (subscriptionStatus.read_only_mode) {
+                  <span class="status-pill" style="margin-left:0.5rem;background:#fee2e2;color:#991b1b;">Vencida · Modo solo lectura</span>
+                } @else if (subscriptionStatus.is_cancelled) {
+                  <span class="status-pill" style="margin-left:0.5rem;background:#fef3c7;color:#92400e;">Cancelación programada ({{ subscriptionStatus.days_remaining }} días restantes)</span>
+                } @else {
+                  <span class="status-pill active" style="margin-left:0.5rem;">{{ subscriptionStatus.days_remaining }} días restantes</span>
+                }
+              </h3>
+              <small style="color:#585f67;">
+                Cupo de sucursales activas: <strong>{{ activeBranches.length }} / {{ subscriptionStatus.max_active_branches }}</strong>
+                · Reportes IA generativa: <strong>{{ subscriptionStatus.generative_reports_enabled ? 'Habilitados' : 'Plan Profesional' }}</strong>
+                @if (subscriptionStatus.read_only_mode) {
+                  · Retención de datos: <strong>{{ subscriptionStatus.retention_days_remaining }} días</strong> para exportar o reactivar.
+                }
+                @if (subscriptionStatus.is_cancelled && !subscriptionStatus.read_only_mode) {
+                  · <em>No se renovará automáticamente al término del período.</em>
+                }
+              </small>
+            </div>
+            <div style="display:flex;flex-wrap:wrap;gap:0.5rem;">
+              @if (!subscriptionStatus.email_verified) {
+                <button type="button" class="small-button" (click)="verifyEmail()">Confirmar correo</button>
+              }
+              <button type="button" class="small-button" (click)="exportTenantData()">Exportar datos JSON</button>
+              @if (subscriptionStatus.is_cancelled && !subscriptionStatus.read_only_mode) {
+                <button type="button" class="small-button" style="background:#065f46;color:#ffffff;border:none;" (click)="resumeSubscription()">
+                  Reactivar renovación
+                </button>
+              } @else if (!subscriptionStatus.read_only_mode && !subscriptionStatus.is_trial) {
+                <button type="button" class="small-button" style="color:#991b1b;border-color:#fca5a5;" (click)="openCancelModal()">
+                  Cancelar suscripción
+                </button>
+              }
+              @if (subscriptionStatus.plan?.code !== 'PRO' || subscriptionStatus.read_only_mode) {
+                <button type="button" class="button button-dark" style="padding:0.45rem 0.9rem;font-size:0.8rem;" (click)="requestPlanReactivation('PRO')">
+                  {{ subscriptionStatus.reactivation_requested ? 'Solicitud enviada (' + (subscriptionStatus.requested_plan_code || 'PRO') + ')' : (subscriptionStatus.read_only_mode ? 'Solicitar reactivación' : 'Solicitar Plan Profesional') }}
+                </button>
+              }
+            </div>
+          </div>
+        }
         @if (section === 'overview') {
            <div class="overview-workspace"><div class="admin-heading overview-heading"><div><p class="eyebrow">Administración</p><h2>Resumen operativo</h2><p class="admin-subtitle">Una lectura rápida del estado actual de tu tienda y sus operaciones principales.</p></div><span class="overview-date">HOY · {{ overviewDate }}</span></div>
             <div class="overview-hero"><div><span class="panel-index">PANEL DE CONTROL</span><h3>Todo lo que importa,<br><em>en un solo lugar.</em></h3><p>Gestiona usuarios, inventario y puntos de venta desde un espacio centralizado.</p></div><span class="material-symbols-outlined">dashboard</span></div>
@@ -103,13 +151,364 @@ type SizeMetadata = { size_type: SizeSystem; sort_order: number };
             </div>
           }
         </section>
+
+        <!-- Modal Profesional de Cancelación de Suscripción (Self-Service) -->
+        @if (showCancelModal) {
+          <div class="cancel-modal-backdrop" (click)="closeCancelModal()">
+            <div class="cancel-modal-card" (click)="$event.stopPropagation()" role="dialog" aria-modal="true" aria-labelledby="cancel-modal-title">
+              <div class="cancel-modal-header">
+                <div class="header-icon-wrap">
+                  <span class="material-symbols-outlined">sentiment_dissatisfied</span>
+                </div>
+                <div style="flex:1;">
+                  <h3 id="cancel-modal-title">Gestionar cancelación de suscripción</h3>
+                  <p class="muted">Lamentamos que consideres cancelar tu servicio con nosotros.</p>
+                </div>
+                <button type="button" class="btn-close-modal" (click)="closeCancelModal()">✕</button>
+              </div>
+
+              <div class="cancel-modal-body">
+                <div class="cancel-info-banner">
+                  <div class="banner-highlight">
+                    <span class="material-symbols-outlined">event_available</span>
+                    <div>
+                      <strong>Tu plan continuará disponible hasta el término de tu ciclo pagado</strong>
+                      <p>Dispones de <strong>{{ subscriptionStatus?.days_remaining || 0 }} días restantes</strong> de operación regular y ventas. No se te realizará ningún cargo futuro.</p>
+                    </div>
+                  </div>
+                  <div class="banner-note">
+                    <span class="material-symbols-outlined">shield</span>
+                    <span>Tras finalizar el ciclo pagado, tus datos estarán protegidos y disponibles para exportación durante 90 días en modo consulta.</span>
+                  </div>
+                </div>
+
+                <div class="cancel-survey-group">
+                  <label class="survey-label">
+                    <span>¿Cuál es el motivo principal de tu cancelación? *</span>
+                    <select [(ngModel)]="cancelReason" class="survey-select">
+                      <option value="PRICE">El costo es elevado para el volumen de mi negocio</option>
+                      <option value="FEATURES">Faltan características o módulos que necesito</option>
+                      <option value="PAUSE">Pausa temporal o cierre de mi tienda física</option>
+                      <option value="ANOTHER_SOFTWARE">Estoy migrando a otra solución o software</option>
+                      <option value="NOT_USING">No estamos utilizando el sistema con frecuencia</option>
+                      <option value="OTHER">Otro motivo</option>
+                    </select>
+                  </label>
+
+                  <label class="survey-label">
+                    <span>¿Cómo podríamos mejorar? (Opcional)</span>
+                    <textarea [(ngModel)]="cancelFeedback" placeholder="Cuéntanos qué necesitabas o qué podríamos haber hecho mejor..." rows="3" class="survey-textarea"></textarea>
+                  </label>
+
+                  <label class="immediate-toggle-label">
+                    <input type="checkbox" [(ngModel)]="cancelImmediate">
+                    <span>Deseo suspender el servicio inmediatamente hoy mismo (en vez de esperar al fin del ciclo pagado).</span>
+                  </label>
+                </div>
+
+                <div class="export-reminder-box">
+                  <span class="material-symbols-outlined">download</span>
+                  <div>
+                    <strong>¿Deseas respaldar tu información antes de irte?</strong>
+                    <p>Puedes descargar un archivo JSON con todos tus productos, variantes, precios y sucursales.</p>
+                  </div>
+                  <button type="button" class="small-button" (click)="exportTenantData()">Descargar respaldo</button>
+                </div>
+              </div>
+
+              <div class="cancel-modal-footer">
+                <button type="button" class="button button-light" (click)="closeCancelModal()">
+                  Conservar mi suscripción
+                </button>
+                <button type="button" class="btn-confirm-cancel" [disabled]="cancellingSubscription" (click)="confirmCancelSubscription()">
+                  {{ cancellingSubscription ? 'Procesando...' : (cancelImmediate ? 'Confirmar cancelación inmediata' : 'Confirmar no renovación') }}
+                </button>
+              </div>
+            </div>
+          </div>
+        }
     </div>
   `,
+  styles: [`
+    .cancel-modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(27, 28, 26, 0.65);
+      backdrop-filter: blur(4px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1100;
+      padding: 20px;
+      box-sizing: border-box;
+      animation: fadeIn 0.2s ease-out;
+    }
+    .cancel-modal-card {
+      background: #ffffff;
+      border-radius: 18px;
+      width: 100%;
+      max-width: 580px;
+      box-shadow: 0 20px 45px rgba(0, 0, 0, 0.25);
+      padding: 28px;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+      animation: slideUp 0.22s ease-out;
+    }
+    .cancel-modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      border-bottom: 1px solid #f0ede6;
+      padding-bottom: 14px;
+      gap: 12px;
+    }
+    .header-icon-wrap {
+      width: 44px;
+      height: 44px;
+      border-radius: 12px;
+      background: #fef2f2;
+      color: #991b1b;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .header-icon-wrap .material-symbols-outlined {
+      font-size: 24px;
+    }
+    .cancel-modal-header h3 {
+      font-family: 'Playfair Display', Georgia, serif;
+      font-size: 1.35rem;
+      margin: 0 0 4px;
+      color: #1b1c1a;
+    }
+    .cancel-modal-header .muted {
+      font-size: 0.82rem;
+      color: #6b7280;
+      margin: 0;
+    }
+    .btn-close-modal {
+      background: transparent;
+      border: none;
+      font-size: 1.3rem;
+      cursor: pointer;
+      color: #9ca3af;
+      padding: 4px;
+      border-radius: 6px;
+    }
+    .btn-close-modal:hover { color: #1b1c1a; }
+    .cancel-modal-body {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    .cancel-info-banner {
+      background: #fdfaf6;
+      border: 1px solid #f2ede4;
+      border-radius: 12px;
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .banner-highlight {
+      display: flex;
+      gap: 10px;
+      align-items: flex-start;
+    }
+    .banner-highlight .material-symbols-outlined {
+      font-size: 22px;
+      color: #8f6d2d;
+      flex-shrink: 0;
+      margin-top: 2px;
+    }
+    .banner-highlight strong {
+      font-size: 0.88rem;
+      color: #1b1c1a;
+      display: block;
+      margin-bottom: 3px;
+    }
+    .banner-highlight p {
+      margin: 0;
+      font-size: 0.82rem;
+      color: #4b5563;
+      line-height: 1.4;
+    }
+    .banner-note {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      font-size: 0.78rem;
+      color: #6b7280;
+      background: #ffffff;
+      padding: 8px 10px;
+      border-radius: 8px;
+      border: 1px solid #eeebe5;
+    }
+    .banner-note .material-symbols-outlined {
+      font-size: 16px;
+      color: #16a34a;
+      flex-shrink: 0;
+    }
+    .cancel-survey-group {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .survey-label {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: #1b1c1a;
+    }
+    .survey-select, .survey-textarea {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 10px 12px;
+      font-size: 0.85rem;
+      border: 1px solid #d5cec4;
+      border-radius: 8px;
+      background: #ffffff;
+      color: #1b1c1a;
+      font-family: inherit;
+    }
+    .survey-select:focus, .survey-textarea:focus {
+      outline: none;
+      border-color: #8f6d2d;
+    }
+    .survey-textarea {
+      resize: vertical;
+    }
+    .immediate-toggle-label {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      font-size: 0.8rem;
+      color: #6b7280;
+      cursor: pointer;
+    }
+    .immediate-toggle-label input {
+      margin-top: 2px;
+      cursor: pointer;
+    }
+    .export-reminder-box {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      background: #f0fdf4;
+      border: 1px solid #bbf7d0;
+      border-radius: 10px;
+      padding: 12px 14px;
+    }
+    .export-reminder-box .material-symbols-outlined {
+      font-size: 24px;
+      color: #15803d;
+      flex-shrink: 0;
+    }
+    .export-reminder-box strong {
+      display: block;
+      font-size: 0.82rem;
+      color: #14532d;
+    }
+    .export-reminder-box p {
+      margin: 0;
+      font-size: 0.75rem;
+      color: #166534;
+    }
+    .export-reminder-box .small-button {
+      margin-left: auto;
+      white-space: nowrap;
+      background: #ffffff;
+      border-color: #86efac;
+      color: #14532d;
+    }
+    .cancel-modal-footer {
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+      border-top: 1px solid #f0ede6;
+      padding-top: 16px;
+    }
+    .btn-confirm-cancel {
+      background: #b91c1c;
+      color: #ffffff;
+      border: none;
+      border-radius: 8px;
+      padding: 9px 16px;
+      font-size: 0.82rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s ease;
+    }
+    .btn-confirm-cancel:hover {
+      background: #991b1b;
+    }
+    .btn-confirm-cancel:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    @keyframes slideUp { from { transform: translateY(16px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+  `],
 })
 export class AdminComponent {
   private readonly api = inject(AdminService);
   private readonly fb = inject(FormBuilder);
   section: Section = 'overview'; error = '';
+  subscriptionStatus: SubscriptionCurrentStatus | null = null;
+  subscriptionNotice = '';
+  showCancelModal = false;
+  cancelReason: 'PRICE' | 'FEATURES' | 'PAUSE' | 'ANOTHER_SOFTWARE' | 'NOT_USING' | 'OTHER' = 'PRICE';
+  cancelFeedback = '';
+  cancelImmediate = false;
+  cancellingSubscription = false;
+
+  openCancelModal(): void {
+    this.cancelReason = 'PRICE';
+    this.cancelFeedback = '';
+    this.cancelImmediate = false;
+    this.showCancelModal = true;
+  }
+
+  closeCancelModal(): void {
+    this.showCancelModal = false;
+  }
+
+  confirmCancelSubscription(): void {
+    this.cancellingSubscription = true;
+    this.api.cancelSubscription({
+      reason: this.cancelReason,
+      feedback: this.cancelFeedback.trim() || undefined,
+      immediate: this.cancelImmediate,
+    }).subscribe({
+      next: (status) => {
+        this.subscriptionStatus = status;
+        this.cancellingSubscription = false;
+        this.showCancelModal = false;
+        this.subscriptionNotice = this.cancelImmediate
+          ? 'Tu suscripción ha sido cancelada y tu cuenta pasó a modo de solo lectura.'
+          : 'Cancelación programada: Tu suscripción continuará activa hasta el término de tu período pagado y no se renovará.';
+      },
+      error: (err) => {
+        this.cancellingSubscription = false;
+        this.fail(err);
+      },
+    });
+  }
+
+  resumeSubscription(): void {
+    this.api.resumeTenantSubscription().subscribe({
+      next: (status) => {
+        this.subscriptionStatus = status;
+        this.subscriptionNotice = 'Renovación automática reactivada. Tu suscripción continuará normalmente.';
+      },
+      error: (err) => this.fail(err),
+    });
+  }
   locationQuery = ''; locationFilter: 'all' | 'active' | 'inactive' | 'branches' = 'all'; selectedCityId: number | null = null;
    userQuery = ''; userFilter: 'all' | 'active' | 'inactive' = 'all'; editingUserId = ''; editingUser: AdminUser | null = null;
    categoryQuery = ''; sizeQuery = ''; colorQuery = ''; masterFilter: 'all' | 'active' | 'inactive' = 'all'; masterEditType: 'categories' | 'sizes' | 'colors' = 'categories'; masterEditId = ''; editingMaster: Category | Size | Color | null = null;
@@ -182,7 +581,10 @@ export class AdminComponent {
   private normalizeIdentifierText(value: string): string { return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim(); }
   private nextProductCodeSuffix(prefix: string): string { const pattern = new RegExp(`^${prefix}-(\\d+)$`, 'i'); const highest = this.products.reduce((max, product) => { const match = pattern.exec(product.code.trim()); return match ? Math.max(max, Number(match[1])) : max; }, 0); return String(highest + 1).padStart(3, '0'); }
   private resetProductIdentifierAutomation(): void { this.productCodeManuallyEdited = false; this.productSlugManuallyEdited = false; this.applyingProductIdentifierSuggestion = false; }
-  private loadAll(): void { this.api.users().subscribe((p) => this.users = p.items); this.api.cities().subscribe((p) => { this.cities = p.items; if (!this.selectedCityId) this.selectedCityId = p.items.find((city) => city.is_active)?.id || p.items[0]?.id || null; }); this.api.branches().subscribe((p) => this.branches = p.items); this.api.categories().subscribe((p) => this.categories = p.items); this.api.sizes().subscribe((p) => this.sizes = p.items); this.api.colors().subscribe((p) => this.colors = p.items); this.api.suppliers().subscribe((p) => this.suppliers = p.items); this.api.seasons().subscribe((p) => this.seasons = p.items); this.api.collections().subscribe((p) => this.collections = p.items); this.api.products().subscribe((p) => this.products = p.items); }
+  private loadAll(): void { this.api.users().subscribe((p) => this.users = p.items); this.api.cities().subscribe((p) => { this.cities = p.items; if (!this.selectedCityId) this.selectedCityId = p.items.find((city) => city.is_active)?.id || p.items[0]?.id || null; }); this.api.branches().subscribe((p) => this.branches = p.items); this.api.categories().subscribe((p) => this.categories = p.items); this.api.sizes().subscribe((p) => this.sizes = p.items); this.api.colors().subscribe((p) => this.colors = p.items); this.api.suppliers().subscribe((p) => this.suppliers = p.items); this.api.seasons().subscribe((p) => this.seasons = p.items); this.api.collections().subscribe((p) => this.collections = p.items); this.api.products().subscribe((p) => this.products = p.items); this.api.currentSubscription?.()?.subscribe({ next: (status) => this.subscriptionStatus = status, error: () => {} }); }
+  verifyEmail(): void { this.api.verifyCompanyEmail().subscribe({ next: (status) => { this.subscriptionStatus = status; this.subscriptionNotice = 'Correo empresarial verificado correctamente.'; }, error: (response) => this.fail(response) }); }
+  requestPlanReactivation(planCode: 'BASIC' | 'PRO'): void { this.api.requestReactivation(planCode, 'Solicitud desde el panel administrativo').subscribe({ next: (status) => { this.subscriptionStatus = status; this.subscriptionNotice = `Solicitud de activación para plan ${planCode} registrada.`; }, error: (response) => this.fail(response) }); }
+  exportTenantData(): void { this.api.exportCompanyData().subscribe({ next: (payload) => { const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' }); const url = URL.createObjectURL(blob); const anchor = document.createElement('a'); anchor.href = url; anchor.download = `tenant-export-${this.subscriptionStatus?.tenant_id || 'empresa'}.json`; anchor.click(); URL.revokeObjectURL(url); this.subscriptionNotice = 'Exportación de datos descargada correctamente.'; }, error: (response) => this.fail(response) }); }
   private fail(response?: unknown): void { const validation = response instanceof HttpErrorResponse && Array.isArray(response.error?.detail) ? response.error.detail.map((item: { msg?: string }) => item.msg).filter(Boolean).join('. ') : ''; const detail = response instanceof HttpErrorResponse && typeof response.error?.detail?.message === 'string' ? response.error.detail.message : validation || (response instanceof HttpErrorResponse && response.status === 401 ? 'Tu sesión de administrador expiró. Vuelve a iniciar sesión.' : 'No se pudo completar la operación. Verifica los datos.'); this.error = detail; }
    createUser(): void { if (this.userForm.invalid) return; const raw = this.userForm.getRawValue(); const data = { ...raw, supplier_id: raw.supplier_id ? Number(raw.supplier_id) : null }; this.api.createUser(data).subscribe({ next: (item) => { this.users = [item, ...this.users]; this.userForm.reset({ role: 'CLIENT', supplier_id: '' }); this.showAdminPassword = false; this.showUserForm = false; }, error: (response) => this.fail(response) }); } toggleUser(item: AdminUser): void { this.api.setUserActive(item.id, !item.is_active).subscribe({ next: (u) => item.is_active = u.is_active, error: (response) => this.fail(response) }); }
    selectUserForEdit(value: string): void { this.editingUserId = value; this.editingUser = this.users.find((user) => `${user.id}` === value) || null; if (this.editingUser) this.userEditForm.patchValue({ first_name: this.editingUser.first_name, last_name: this.editingUser.last_name, phone: this.editingUser.phone, role: this.editingUser.role, supplier_id: this.editingUser.supplier_id ? `${this.editingUser.supplier_id}` : '' }); else this.userEditForm.reset({ role: 'CLIENT', supplier_id: '' }); }
@@ -191,7 +593,7 @@ export class AdminComponent {
   toggleBranchAssignment(id: number): void { this.branchAssignmentIds = this.branchAssignmentIds.includes(id) ? this.branchAssignmentIds.filter((item) => item !== id) : [...this.branchAssignmentIds, id]; }
   saveBranchAssignment(): void { const userId = Number(this.branchAssignmentUserId); if (!userId) return; this.api.updateUser(userId, { branch_ids: this.branchAssignmentIds }).subscribe({ next: (user) => { this.users = this.users.map((item) => item.id === user.id ? user : item); this.error = ''; }, error: (response) => this.fail(response) }); }
   createCity(): void { if (this.cityForm.invalid) return; const name = this.cityForm.getRawValue().name.trim(); if (this.cities.some((city) => city.name.trim().toLowerCase() === name.toLowerCase())) { this.error = 'La ciudad ya está registrada.'; return; } this.api.createCity(name).subscribe({ next: (i) => { this.cities = [...this.cities, i]; this.selectedCityId = i.id; this.cityForm.reset(); this.showCityForm = false; this.error = ''; }, error: (response) => this.fail(response) }); } toggleCity(i: City): void { this.api.setCityActive(i.id, !i.is_active).subscribe({ next: (u) => { i.is_active = u.is_active; if (u.is_active) this.selectedCityId = u.id; }, error: (response) => this.fail(response) }); }
-  createBranch(): void { if (this.branchForm.invalid) return; const raw = this.branchForm.getRawValue(); const cityId = Number(raw.city_id); if (this.branches.some((branch) => branch.city_id === cityId && branch.name.trim().toLowerCase() === raw.name.trim().toLowerCase())) { this.error = 'Ya existe una sucursal con ese nombre en la ciudad seleccionada.'; return; } this.api.createBranch({ ...raw, city_id: cityId }).subscribe({ next: (i) => { this.branches = [...this.branches, i]; this.selectedCityId = i.city_id; this.branchForm.reset(); this.showBranchForm = false; this.error = ''; }, error: (response) => this.fail(response) }); } toggleBranch(i: Branch): void { this.api.setBranchActive(i.id, !i.is_active).subscribe({ next: (u) => i.is_active = u.is_active, error: (response) => this.fail(response) }); }
+  createBranch(): void { if (this.branchForm.invalid) return; const raw = this.branchForm.getRawValue(); const cityId = Number(raw.city_id); this.api.createBranch({ ...raw, city_id: cityId }).subscribe({ next: (i) => { this.branches = [...this.branches, i]; this.selectedCityId = i.city_id; this.branchForm.reset(); this.showBranchForm = false; this.error = ''; }, error: (response) => this.fail(response) }); } toggleBranch(i: Branch): void { this.api.setBranchActive(i.id, !i.is_active).subscribe({ next: (u) => i.is_active = u.is_active, error: (response) => this.fail(response) }); }
   createCategory(): void { if (this.categoryForm.invalid) return; this.api.createCategory(this.categoryForm.getRawValue()).subscribe({ next: (i) => { this.categories = [...this.categories, i]; this.categoryForm.reset(); }, error: () => this.fail() }); } createSize(): void { if (this.sizeForm.invalid) return; const raw = this.sizeForm.getRawValue(); const detected = this.inferSizeMetadata(raw.name); this.api.createSize({ name: raw.name.trim(), ...detected }).subscribe({ next: (i) => { this.sizes = [...this.sizes, i]; this.sizeForm.reset({ name: '', size_type: 'ALPHA', sort_order: 100 }); }, error: () => this.fail() }); } createColor(): void { if (this.colorForm.invalid) return; this.api.createColor(this.colorForm.getRawValue()).subscribe({ next: (i) => { this.colors = [...this.colors, i]; this.colorForm.reset(); }, error: () => this.fail() }); }
    toggleMaster(path: 'categories' | 'sizes' | 'colors', item: Category | Size | Color): void { this.api.setMasterActive(path, item.id, !item.is_active).subscribe({ next: () => item.is_active = !item.is_active, error: () => this.fail() }); }
    selectMasterForEdit(value: string): void { this.masterEditId = value; this.editingMaster = this.masterEditItems.find((item) => `${item.id}` === value) || null; if (!this.editingMaster) { this.masterEditForm.reset({ name: '', description: '', size_type: 'ALPHA', sort_order: 0, hex_code: '' }); return; } const item = this.editingMaster; this.masterEditForm.patchValue({ name: item.name, description: 'description' in item ? item.description || '' : '', size_type: 'size_type' in item ? item.size_type : 'ALPHA', sort_order: 'sort_order' in item ? item.sort_order : 0, hex_code: 'hex_code' in item ? item.hex_code || '' : '' }); }

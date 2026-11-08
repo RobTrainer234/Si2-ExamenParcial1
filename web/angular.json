@@ -15,14 +15,24 @@
             "index": "src/index.html",
             "tsConfig": "tsconfig.app.json",
             "polyfills": ["zone.js"],
-            "assets": [],
+            "assets": [
+              { "glob": "**/*", "input": "src/assets", "output": "assets" },
+              { "glob": "favicon.ico", "input": "src", "output": "" },
+              { "glob": "manifest.webmanifest", "input": "src", "output": "" }
+            ],
             "styles": ["src/styles.css"],
             "optimization": false
           },
           "configurations": {
             "development": { "optimization": false, "sourceMap": true },
-            "production": { "optimization": true, "sourceMap": false, "outputHashing": "all" }
-          }
+            "production": {
+              "optimization": true,
+              "sourceMap": false,
+              "outputHashing": "all",
+              "serviceWorker": "ngsw-config.json"
+            }
+          },
+          "defaultConfiguration": "production"
         },
         "serve": {
           "builder": "@angular/build:dev-server",

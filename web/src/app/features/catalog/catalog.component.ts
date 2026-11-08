@@ -1,5 +1,7 @@
 import { ChangeDetectorRef, Component, inject } from '@angular/core';
-import { CurrencyPipe } from '@angular/common';
+import { CurrencyPipe, DatePipe } from '@angular/common';
+import { SyncCatalogService } from '../../core/offline/sync-catalog.service';
+import { OfflineCatalogService } from '../../core/offline/offline-catalog.service';
 import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { finalize } from 'rxjs';
@@ -9,7 +11,7 @@ import { CatalogService } from '../../core/catalog/catalog.service';
 
 @Component({
   standalone: true,
-  imports: [CurrencyPipe, ReactiveFormsModule, RouterLink],
+  imports: [CurrencyPipe, DatePipe, ReactiveFormsModule, RouterLink],
   template: `
     <section class="collection-browser" aria-labelledby="collection-title">
       <div class="collection-header-meta">
@@ -31,6 +33,40 @@ import { CatalogService } from '../../core/catalog/catalog.service';
         }
       </div>
     </section>
+
+        <!-- Offline & Sync Status Bar -->
+    <div class="sync-status-bar" aria-label="Estado de sincronización offline">
+      <div class="sync-status-info">
+        @if (!syncService.isOnline() || isOfflineMode) {
+          <span class="offline-pill" role="status">
+            <span class="material-symbols-outlined" aria-hidden="true">wifi_off</span>
+            <strong>Modo offline</strong> · Catálogo local
+          </span>
+          <span class="offline-warning-text">
+            Precios y disponibilidad locales pueden estar desactualizados.
+          </span>
+        } @else {
+          <span class="online-pill">
+            <span class="material-symbols-outlined" aria-hidden="true">wifi</span>
+            En línea
+          </span>
+        }
+        @if (syncService.lastSync()) {
+          <span class="last-sync-badge">
+            Sincronizado: {{ syncService.lastSync()?.branch_name ? syncService.lastSync()?.branch_name + ' · ' : '' }}{{ syncService.lastSync()?.sync_timestamp | date:'short' }}
+          </span>
+        }
+      </div>
+      <div class="sync-actions">
+        <button type="button" class="button button-outline sync-btn" (click)="syncOffline()" [disabled]="syncService.isSyncing()">
+          <span class="material-symbols-outlined" [class.sync-spinning]="syncService.isSyncing()" aria-hidden="true">sync</span>
+          {{ syncService.isSyncing() ? 'Sincronizando...' : (syncService.lastSync() ? 'Sincronizar ahora' : 'Descargar catálogo offline') }}
+        </button>
+        @if (syncService.syncError()) {
+          <span class="sync-error-pill" role="alert">{{ syncService.syncError() }}</span>
+        }
+      </div>
+    </div>
 
     <div class="catalog-control-panel">
       <div class="catalog-toolbar-wrapper">
@@ -117,6 +153,9 @@ import { CatalogService } from '../../core/catalog/catalog.service';
 })
 export class CatalogComponent {
   private readonly catalog = inject(CatalogService);
+  readonly syncService = inject(SyncCatalogService);
+  readonly offlineCatalog = inject(OfflineCatalogService);
+  isOfflineMode = false;
   private readonly changeDetector = inject(ChangeDetectorRef);
   private readonly route = inject(ActivatedRoute);
   readonly filters = inject(FormBuilder).nonNullable.group({ q: [''], category_id: [''], size_id: [''], color_id: [''], branch_id: [''], audience: [''], season_id: [''], collection_id: [''], sort: ['editorial'] });
@@ -139,6 +178,7 @@ export class CatalogComponent {
     this.catalog.filters().subscribe({ next: (filters) => { this.categories = filters.categories; this.sizes = filters.sizes; this.colors = filters.colors; this.branches = filters.branches; }, error: () => undefined });
     this.catalog.navigation().subscribe({ next: (navigation) => { this.navigation = navigation; this.changeDetector.markForCheck(); }, error: () => { this.navigation = null; this.changeDetector.markForCheck(); } });
     this.route.queryParamMap.subscribe((params) => { this.filters.patchValue({ audience: params.get('audience') || '', season_id: params.get('season_id') || '', collection_id: params.get('collection_id') || '', sort: params.get('sort') || 'editorial' }); this.load(); });
+    this.syncService.autoSync();
   }
 
   search(): void { this.page = 1; this.load(); }
@@ -161,16 +201,91 @@ export class CatalogComponent {
 
   goTo(page: number): void { this.page = page; this.load(); }
 
+  syncOffline(): void {
+    const raw = this.filters.getRawValue();
+    const branchId = this.toNumber(raw.branch_id);
+    this.syncService.syncCatalog(branchId).subscribe({
+      next: () => {
+        this.changeDetector.markForCheck();
+      },
+      error: () => {
+        this.changeDetector.markForCheck();
+      },
+    });
+  }
+
   private load(): void {
     this.loading = true;
     this.error = false;
     const raw = this.filters.getRawValue();
-    this.catalog.list({ page: this.page, page_size: 12, q: raw.q, category_id: this.toNumber(raw.category_id), size_id: this.toNumber(raw.size_id), color_id: this.toNumber(raw.color_id), branch_id: this.toNumber(raw.branch_id), audience: raw.audience || undefined, season_id: this.toNumber(raw.season_id), collection_id: this.toNumber(raw.collection_id), sort: raw.sort || 'editorial' }).pipe(
+    const query = {
+      page: this.page,
+      page_size: 12,
+      q: raw.q,
+      category_id: this.toNumber(raw.category_id),
+      size_id: this.toNumber(raw.size_id),
+      color_id: this.toNumber(raw.color_id),
+      branch_id: this.toNumber(raw.branch_id),
+      audience: raw.audience || undefined,
+      season_id: this.toNumber(raw.season_id),
+      collection_id: this.toNumber(raw.collection_id),
+      sort: raw.sort || 'editorial',
+    };
+
+    if (!this.syncService.isOnline()) {
+      void this.loadFromOffline(query);
+      return;
+    }
+
+    this.catalog.list(query).pipe(
       finalize(() => { this.loading = false; this.changeDetector.markForCheck(); }),
     ).subscribe({
-      next: (response) => { this.products = response.items; this.total = response.total; this.totalPages = response.total_pages; },
-      error: () => { this.error = true; this.products = []; this.total = 0; this.totalPages = 0; },
+      next: (response) => {
+        this.isOfflineMode = false;
+        this.products = response.items;
+        this.total = response.total;
+        this.totalPages = response.total_pages;
+      },
+      error: async () => {
+        await this.loadFromOffline(query);
+      },
     });
+  }
+
+  private async loadFromOffline(query: { q?: string; category_id?: number }): Promise<void> {
+    try {
+      const offlineProds = await this.offlineCatalog.getProducts(query.category_id, query.q);
+      if (offlineProds.length > 0) {
+        this.isOfflineMode = true;
+        this.products = offlineProds.map((p) => ({
+          id: p.id,
+          category_id: p.category_id,
+          category_name: p.category_name,
+          audience: 'UNISEX',
+          code: p.code,
+          name: p.name,
+          slug: p.slug,
+          price: p.price,
+          image_url: p.image_url,
+        }));
+        this.total = this.products.length;
+        this.totalPages = Math.ceil(this.total / 12) || 1;
+        this.error = false;
+      } else {
+        this.error = true;
+        this.products = [];
+        this.total = 0;
+        this.totalPages = 0;
+      }
+    } catch {
+      this.error = true;
+      this.products = [];
+      this.total = 0;
+      this.totalPages = 0;
+    } finally {
+      this.loading = false;
+      this.changeDetector.markForCheck();
+    }
   }
 
   get selectedBranchName(): string { const id = Number(this.filters.controls.branch_id.value); return this.branches.find((branch) => branch.id === id)?.name || 'Todas las sucursales'; }

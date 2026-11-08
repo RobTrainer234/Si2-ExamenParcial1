@@ -20,6 +20,11 @@ logger = logging.getLogger(__name__)
 
 _GEMINI_GENERATE_URL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
 _VTON_HTTP_TIMEOUT_SECONDS = 60.0
+_VTON_FALLBACK_MODELS = (
+    "gemini-3.1-flash-lite-image",
+    "gemini-3.1-flash-image",
+    "gemini-2.5-flash-image",
+)
 _MAX_CAPTURED_IMAGE_BYTES = 10 * 1024 * 1024
 _MAX_CAPTURED_IMAGE_PIXELS = 16_000_000
 _ALLOWED_CAPTURED_IMAGE_FORMATS = {"JPEG", "PNG", "WEBP"}
@@ -108,10 +113,10 @@ class VtonService:
                 # Correct EXIF rotation (cell phones take portrait photos with EXIF rotation tags)
                 transposed = ImageOps.exif_transpose(raw_image)
                 rgb_img = transposed.convert("RGB")
-                if max(rgb_img.width, rgb_img.height) > 1280:
-                    rgb_img.thumbnail((1280, 1280), Image.Resampling.LANCZOS)
+                if max(rgb_img.width, rgb_img.height) > 1024:
+                    rgb_img.thumbnail((1024, 1024), Image.Resampling.LANCZOS)
                 buf = io.BytesIO()
-                rgb_img.save(buf, format="JPEG", quality=90, optimize=True)
+                rgb_img.save(buf, format="JPEG", quality=82, optimize=True)
                 processed_bytes = buf.getvalue()
                 declared_mime = "image/jpeg"
         except HTTPException:
@@ -127,8 +132,10 @@ class VtonService:
     @staticmethod
     def _image_to_base64(image: Image.Image) -> tuple[str, str]:
         rgb_image = image.convert("RGB")
+        if max(rgb_image.width, rgb_image.height) > 768:
+            rgb_image.thumbnail((768, 768), Image.Resampling.LANCZOS)
         buf = io.BytesIO()
-        rgb_image.save(buf, format="JPEG", quality=92, optimize=True)
+        rgb_image.save(buf, format="JPEG", quality=85, optimize=True)
         return base64.b64encode(buf.getvalue()).decode("utf-8"), "image/jpeg"
 
     @staticmethod
@@ -191,10 +198,6 @@ class VtonService:
             f"Product to fit: {product.name}."
         )
 
-        model = settings.gemini_vton_model or "gemini-2.5-flash-image"
-        api_url = _GEMINI_GENERATE_URL.format(model=model)
-        api_url_with_key = f"{api_url}?key={settings.gemini_api_key}"
-
         payload = {
             "contents": [
                 {
@@ -213,26 +216,41 @@ class VtonService:
             "Content-Type": "application/json",
             "x-goog-api-key": settings.gemini_api_key or "",
         }
-        try:
-            with httpx.Client(timeout=_VTON_HTTP_TIMEOUT_SECONDS) as client:
-                response = client.post(api_url_with_key, headers=headers, json=payload)
-            if response.status_code >= 400:
-                logger.warning("Gemini VTON returned %s: %s", response.status_code, response.text[:200])
-                return None
-            
-            data = response.json()
-            # Extract from candidates -> content -> parts -> inlineData
-            for candidate in data.get("candidates", []):
-                for part in candidate.get("content", {}).get("parts", []):
-                    inline_data = part.get("inlineData") or part.get("inline_data")
-                    if inline_data and inline_data.get("data"):
-                        mime = inline_data.get("mimeType") or inline_data.get("mime_type") or "image/png"
-                        return f"data:{mime};base64,{inline_data['data']}"
-            
-            return cls._extract_interactions_image(data)
-        except (httpx.HTTPError, ValueError, TypeError) as exc:
-            logger.warning("Gemini VTON call failed: %s", exc)
-            return None
+        configured_model = settings.gemini_vton_model or _VTON_FALLBACK_MODELS[0]
+        models = tuple(dict.fromkeys((configured_model, *_VTON_FALLBACK_MODELS)))
+        for model in models:
+            try:
+                api_url = _GEMINI_GENERATE_URL.format(model=model)
+                with httpx.Client(timeout=_VTON_HTTP_TIMEOUT_SECONDS) as client:
+                    response = client.post(
+                        f"{api_url}?key={settings.gemini_api_key}",
+                        headers=headers,
+                        json=payload,
+                    )
+                if response.status_code >= 400:
+                    logger.warning(
+                        "Gemini VTON model %s returned %s: %s",
+                        model,
+                        response.status_code,
+                        response.text[:200],
+                    )
+                    continue
+
+                data = response.json()
+                # Extract from candidates -> content -> parts -> inlineData.
+                for candidate in data.get("candidates", []):
+                    for part in candidate.get("content", {}).get("parts", []):
+                        inline_data = part.get("inlineData") or part.get("inline_data")
+                        if inline_data and inline_data.get("data"):
+                            mime = inline_data.get("mimeType") or inline_data.get("mime_type") or "image/png"
+                            return f"data:{mime};base64,{inline_data['data']}"
+
+                extracted = cls._extract_interactions_image(data)
+                if extracted:
+                    return extracted
+            except (httpx.HTTPError, ValueError, TypeError) as exc:
+                logger.warning("Gemini VTON model %s failed: %s", model, exc)
+        return None
 
     @classmethod
     def generate_neutral_studio_placeholder(cls) -> str:
@@ -303,12 +321,12 @@ class VtonService:
                 "product_name": product.name,
                 "calce_porcentaje": None,
                 "calce_status": "PENDIENTE_DE_CAPTURA",
-                "alineacion_hombros": "Pendiente: capturá una foto para generar VTON real.",
+                "alineacion_hombros": "Pendiente: capturá una foto para enviarla a Gemini.",
                 "proporcion_torso": "Pendiente: sin análisis corporal hasta contar con una captura.",
                 "talla_sugerida": "Pendiente",
                 "veredicto_estilista": (
                     "Estudio neutral listo. Todavía no hay prueba virtual ni evaluación de calce: "
-                    "capturá una foto para enviar la prenda al proveedor VTON."
+                    "capturá una foto para enviar la prenda y tu foto a Gemini."
                 ),
                 "composite_image_base64": cls.generate_neutral_studio_placeholder(),
                 "detalles_tecnicos": {
@@ -319,7 +337,7 @@ class VtonService:
                     "shoulder_tilt_degrees": None,
                     "anatomical_symmetry": None,
                     "mode": "studio_pending",
-                    "provider": "gemini_interactions",
+                    "provider": "gemini_api",
                 },
             }
 
@@ -330,7 +348,7 @@ class VtonService:
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                 detail={
                     "code": "VTON_PROVIDER_UNAVAILABLE",
-                    "message": "El motor VTON no está disponible en este momento. Intentá nuevamente más tarde.",
+                    "message": "Gemini no está disponible en este momento. Intentá nuevamente más tarde.",
                 },
             )
 
@@ -356,7 +374,7 @@ class VtonService:
                 status_code=status.HTTP_502_BAD_GATEWAY,
                 detail={
                     "code": "VTON_PROVIDER_OUTPUT_UNAVAILABLE",
-                    "message": "El proveedor VTON no devolvió una imagen utilizable. Intentá nuevamente con otra captura.",
+                    "message": "Gemini no devolvió una imagen utilizable. Intentá nuevamente con otra foto.",
                 },
             )
 
@@ -364,23 +382,22 @@ class VtonService:
             "product_id": product.id,
             "product_name": product.name,
             "calce_porcentaje": None,
-            "calce_status": "IMAGEN_GENERADA_SIN_METRICA_DE_CALCE",
-            "alineacion_hombros": "Imagen VTON generada; sin medición de hombros validada por el backend.",
-            "proporcion_torso": "Sin métrica corporal validada por el backend.",
+            "calce_status": "GENERADO_POR_GEMINI",
+            "alineacion_hombros": "Resultado visual generado por Gemini.",
+            "proporcion_torso": "No se solicitó medición corporal.",
             "talla_sugerida": talla_sug,
             "veredicto_estilista": (
-                f"Se generó una visualización VTON para '{product.name}' con la captura enviada. "
-                "No se calculó porcentaje de calce ni confianza anatómica automática."
+                f"Gemini generó una visualización de '{product.name}' usando la foto enviada."
             ),
             "composite_image_base64": composite_b64,
             "detalles_tecnicos": {
-                "engine": "Gemini-VTON",
-                "engine_mode": "gemini_interactions",
+                "engine": "Gemini Image API",
+                "engine_mode": "generate_content_image",
                 "landmarks_detected": [],
                 "confidence": None,
                 "shoulder_tilt_degrees": None,
                 "anatomical_symmetry": None,
                 "mode": "camera_capture",
-                "provider": "gemini_interactions",
+                "provider": "gemini_api",
             },
         }

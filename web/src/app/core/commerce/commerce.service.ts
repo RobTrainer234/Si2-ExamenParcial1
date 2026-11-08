@@ -3,7 +3,7 @@ import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 
 import { appConfig } from '../config/app-config';
-import { Cart, DigitalPurchaseOptions, Page, QRPaymentResponse, QRPaymentStatusResponse, RecommendationItem, Sale, SalePayment, StripePaymentIntent, VirtualFittingSession } from '../models/admin.models';
+import { Cart, CreditNoteBalanceLookup, CreditNoteLookupRequest, CreditNoteSettlementRequest, CreditNoteSettlementResponse, DigitalPurchaseOptions, ExchangeFinalizeInput, ExchangeFinalizeResponse, ExchangeQuote, ExchangeQuoteInput, ExchangeSaleLookup, Page, QRPaymentResponse, QRPaymentStatusResponse, RecommendationItem, ReturnCustomer, ReturnLookupResponse, ReturnRequest, ReturnResponse, Sale, SalePayment, StripePaymentIntent, VirtualFittingSession } from '../models/admin.models';
 
 @Injectable({ providedIn: 'root' })
 export class CommerceService {
@@ -24,11 +24,27 @@ export class CommerceService {
   confirmQrTransfer(transaction_reference: string, amount: number): Observable<Sale> { return this.http.post<Sale>(`${this.base}/payments/qr/confirm-transfer`, { transaction_reference, amount }); }
   simulateQrPayment(transaction_reference: string, amount: number): Observable<Sale> { return this.http.post<Sale>(`${this.base}/payments/qr/simulate`, { transaction_reference, amount }); }
   approveSandbox(transaction_reference: string, amount: number): Observable<SalePayment> { return this.http.post<SalePayment>(`${this.base}/payments/electronic/notification`, { transaction_reference, amount, status: 'APPROVED' }, { headers: { 'X-Sandbox-Signature': appConfig.sandboxPaymentWebhookSecret } }); }
-  physicalSale(data: { branch_id: number; items: { product_variant_id: number; quantity: number }[] }): Observable<Sale> { return this.http.post<Sale>(`${this.base}/sales/physical`, data); }
+  physicalSale(data: { branch_id: number; customer_id?: number; items: { product_variant_id: number; quantity: number }[] }): Observable<Sale> { return this.http.post<Sale>(`${this.base}/sales/physical`, data); }
   cashPayment(saleId: number, amount: number, method = 'CASH', transaction_reference?: string): Observable<Sale> { return this.http.post<Sale>(`${this.base}/sales/${saleId}/cash-payment`, { method, amount, transaction_reference }); }
   recommendations(): Observable<{ items: RecommendationItem[] }> { return this.http.get<{ items: RecommendationItem[] }>(`${this.base}/recommendations/mine`); }
   startVirtualFitting(product_id: number, device_info = 'web-preview'): Observable<VirtualFittingSession> { return this.http.post<VirtualFittingSession>(`${this.base}/virtual-fitting/sessions`, { product_id, device_info }); }
   finishVirtualFitting(id: number): Observable<VirtualFittingSession> { return this.http.patch<VirtualFittingSession>(`${this.base}/virtual-fitting/sessions/${id}/finish`, {}); }
   virtualFittingSessions(): Observable<{ items: VirtualFittingSession[] }> { return this.http.get<{ items: VirtualFittingSession[] }>(`${this.base}/virtual-fitting/sessions/mine`); }
   returnSale(saleId: number, reason: string): Observable<Sale> { return this.http.post<Sale>(`${this.base}/sales/${saleId}/return`, { reason }); }
+  lookupReturn(orderNumber: string): Observable<ReturnLookupResponse> { return this.http.get<ReturnLookupResponse>(`${this.base}/returns/lookup/${encodeURIComponent(orderNumber)}`); }
+  searchReturnCustomers(query: string): Observable<ReturnCustomer[]> { return this.http.get<ReturnCustomer[]>(`${this.base}/returns/customers`, { params: { q: query } }); }
+  submitReturn(saleId: number, request: ReturnRequest): Observable<ReturnResponse> { return this.http.post<ReturnResponse>(`${this.base}/sales/${saleId}/return`, request); }
+  lookupCreditNote(request: CreditNoteLookupRequest): Observable<CreditNoteBalanceLookup> { return this.http.post<CreditNoteBalanceLookup>(`${this.base}/credit-notes/lookup`, request); }
+  settleCreditNote(saleId: number, request: CreditNoteSettlementRequest): Observable<CreditNoteSettlementResponse> { return this.http.post<CreditNoteSettlementResponse>(`${this.base}/sales/${saleId}/credit-note-settlement`, request); }
+  lookupSaleForExchange(orderNumber: string): Observable<ExchangeSaleLookup> { return this.http.get<ExchangeSaleLookup>(`${this.base}/sales/lookup/${encodeURIComponent(orderNumber)}`); }
+  exchangeQuote(saleId: number, input: ExchangeQuoteInput): Observable<ExchangeQuote> { return this.http.post<ExchangeQuote>(`${this.base}/sales/${saleId}/exchange/quote`, input); }
+  finalizeExchange(saleId: number, input: ExchangeFinalizeInput): Observable<ExchangeFinalizeResponse> { return this.http.post<ExchangeFinalizeResponse>(`${this.base}/sales/${saleId}/exchange`, input); }
+  pushScannerRelay(branchId: number, barcode: string): Observable<{ queued: boolean; barcode?: string }> { return this.http.post<{ queued: boolean; barcode?: string }>(`${this.base}/scanner-relay`, { branch_id: branchId, barcode }); }
+  popScannerRelay(branchId: number): Observable<{ items: { barcode: string }[] }> { return this.http.get<{ items: { barcode: string }[] }>(`${this.base}/scanner-relay`, { params: { branch_id: branchId } }); }
+  scanImage(branchId: number, file: File): Observable<{ success: boolean; barcode?: string; format?: string; queued?: boolean; error?: string }> {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('branch_id', String(branchId));
+    return this.http.post<{ success: boolean; barcode?: string; format?: string; queued?: boolean; error?: string }>(`${this.base}/scan-image`, formData);
+  }
 }

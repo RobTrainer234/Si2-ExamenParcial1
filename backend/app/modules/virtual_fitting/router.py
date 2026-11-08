@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, status
 
 from app.core.database import get_db
 from app.core.models import User
-from app.modules.auth.dependencies import require_permission
+from app.modules.auth.dependencies import bind_optional_tenant_context, require_permission
 from app.modules.virtual_fitting import service
 from app.modules.virtual_fitting.schemas import (
     VirtualFittingListResponse,
@@ -49,7 +49,7 @@ def vton_try_on(data: VtonTryOnRequest, current_user: VirtualFittingClient, db=D
     )
 
 
-catalogo_vton_router = APIRouter(prefix="/catalogo", tags=["catalogo"])
+catalogo_vton_router = APIRouter(prefix="/catalogo", tags=["catalogo"], dependencies=[Depends(bind_optional_tenant_context)])
 
 
 @catalogo_vton_router.post("/vton/try-on", response_model=VtonTryOnResponse)

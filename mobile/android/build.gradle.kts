@@ -19,6 +19,17 @@ subprojects {
     project.evaluationDependsOn(":app")
 }
 
+// stripe_android pulls an optional issuing dependency whose release lint
+// artifact is no longer published. The app does not use issuing/provisioning;
+// skip only that plugin lint task so regular Stripe PaymentSheet stays enabled.
+subprojects {
+    if (name == "stripe_android") {
+        tasks.matching { it.name == "lintVitalAnalyzeRelease" }.configureEach {
+            enabled = false
+        }
+    }
+}
+
 tasks.register<Delete>("clean") {
     delete(rootProject.layout.buildDirectory)
 }

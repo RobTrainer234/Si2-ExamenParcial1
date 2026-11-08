@@ -38,7 +38,7 @@ def list_master(db: Session, model: type[Any], page: int, page_size: int, query:
 
 
 def get_master(db: Session, model: type[Any], item_id: int, code: str, label: str) -> Any:
-    item = db.get(model, item_id)
+    item = db.scalar(select(model).where(model.id == item_id))
     if item is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail={"code": code, "message": f"{label} no encontrado."})
     return item

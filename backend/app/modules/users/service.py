@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session, joinedload, selectinload
 
 from app.core.models import Branch, Role, Supplier, User
 from app.core.security import hash_password
+from app.modules.auth.dependencies import PLATFORM_ADMIN_ROLE
 from app.modules.users.schemas import AdminUserCreateRequest, UserUpdateRequest
 
 
@@ -25,8 +26,14 @@ def serialize_user(user: User) -> dict[str, object]:
 
 
 def list_users(db: Session, page: int, page_size: int, query: str | None) -> dict[str, object]:
-    statement = select(User).options(joinedload(User.role), selectinload(User.branches)).order_by(User.id.desc())
-    count_statement = select(func.count(User.id))
+    non_platform_filter = ~User.role.has(Role.code == PLATFORM_ADMIN_ROLE)
+    statement = (
+        select(User)
+        .options(joinedload(User.role), selectinload(User.branches))
+        .where(non_platform_filter)
+        .order_by(User.id.desc())
+    )
+    count_statement = select(func.count(User.id)).where(non_platform_filter)
     if query:
         search = f"%{query.strip()}%"
         condition = or_(User.first_name.ilike(search), User.last_name.ilike(search), User.email.ilike(search))
@@ -45,13 +52,22 @@ def list_users(db: Session, page: int, page_size: int, query: str | None) -> dic
 
 def get_user(db: Session, user_id: int) -> User:
     user = db.scalar(select(User).options(joinedload(User.role), selectinload(User.branches)).where(User.id == user_id))
-    if user is None:
+    if user is None or user.role.code == PLATFORM_ADMIN_ROLE:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail={"code": "USER_NOT_FOUND", "message": "Usuario no encontrado."})
     return user
 
 
 def _get_role(db: Session, role_code: str) -> Role:
-    role = db.scalar(select(Role).where(Role.code == role_code.upper(), Role.is_active.is_(True)))
+    normalized = role_code.strip().upper()
+    if normalized == PLATFORM_ADMIN_ROLE:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={
+                "code": "PLATFORM_ROLE_ASSIGNMENT_FORBIDDEN",
+                "message": "No se puede asignar el rol de administrador de plataforma desde la gestión de empresa.",
+            },
+        )
+    role = db.scalar(select(Role).where(Role.code == normalized, Role.is_active.is_(True)))
     if role is None:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail={"code": "ROLE_NOT_FOUND", "message": "El rol indicado no existe o está inactivo."})
     return role

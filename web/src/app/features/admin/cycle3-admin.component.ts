@@ -1,10 +1,22 @@
 import { Component, inject, OnInit } from '@angular/core';
-import { CurrencyPipe, DatePipe } from '@angular/common';
+import { CurrencyPipe, DatePipe, DecimalPipe, NgTemplateOutlet, UpperCasePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { finalize, forkJoin, switchMap } from 'rxjs';
 
 import { AdminService } from '../../core/admin/admin.service';
-import { DashboardFilters, DashboardReport, ProductSummary, Promotion, PromotionInput, ReportAssistantIntent, ReportAssistantResponse, ReportExportFormat } from '../../core/models/admin.models';
+import {
+  CustomerSegmentationResponse,
+  DashboardFilters,
+  DashboardReport,
+  DemandForecastResponse,
+  MLTrainingResponse,
+  ProductSummary,
+  Promotion,
+  PromotionInput,
+  ReportAssistantIntent,
+  ReportAssistantResponse,
+  ReportExportFormat,
+} from '../../core/models/admin.models';
 
 export interface AssistantInsightCard {
   title: string;
@@ -24,9 +36,15 @@ export interface ChannelDonutSlice {
   dashOffset: string;
 }
 
+interface AssistantPreviewRow {
+  label: string;
+  value: string;
+  numericValue?: number | null;
+}
+
 @Component({
   standalone: true,
-  imports: [CurrencyPipe, DatePipe, FormsModule],
+  imports: [CurrencyPipe, DatePipe, DecimalPipe, NgTemplateOutlet, UpperCasePipe, FormsModule],
   template: `
     <section class="operations-page analytics-dashboard">
       <!-- Encabezado Principal del Dashboard -->
@@ -295,42 +313,204 @@ export interface ChannelDonutSlice {
             </div>
           } @else if (assistantResult) {
             <div class="copilot-result-card">
-              <div class="copilot-narrative-box">
-                <div class="narrative-icon">
-                  <span class="material-symbols-outlined">psychology</span>
+              <!-- Cabecera Editorial Limpia -->
+              <div class="copilot-editorial-header">
+                <div class="copilot-editorial-title">
+                  <span class="copilot-eyebrow">SOFÍA IA COPILOT · REPORTE EJECUTIVO</span>
+                  <h4>« {{ assistantPrompt || 'Consulta ejecutiva' }} »</h4>
                 </div>
-                <div class="narrative-body">
-                  <h4>Diagnóstico Ejecutivo</h4>
+                <div class="copilot-header-controls">
+                  @if (assistantChartRows.length > 0) {
+                    <div class="editorial-view-Segmented" role="tablist" aria-label="Formato de vista">
+                      <button type="button" class="seg-btn" [class.active]="activeCopilotChartMode === 'candlestick'" (click)="setCopilotChartMode('candlestick')">
+                        Gráfico de Rango
+                      </button>
+                      <button type="button" class="seg-btn" [class.active]="activeCopilotChartMode === 'donut'" (click)="setCopilotChartMode('donut')">
+                        Anillo de Cuota
+                      </button>
+                      <button type="button" class="seg-btn" [class.active]="activeCopilotChartMode === 'table'" (click)="setCopilotChartMode('table')">
+                        Tabla
+                      </button>
+                    </div>
+                  }
+                  <div class="editorial-export-btns">
+                    <button type="button" class="btn-editorial-export" (click)="exportAssistantReport('xlsx')" [disabled]="isAssistantExporting">
+                      <span class="material-symbols-outlined">table_view</span>
+                      <span>Excel</span>
+                    </button>
+                    <button type="button" class="btn-editorial-export" (click)="exportAssistantReport('pdf')" [disabled]="isAssistantExporting">
+                      <span class="material-symbols-outlined">picture_as_pdf</span>
+                      <span>PDF</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Síntesis Ejecutiva & Indicadores Clave en una sola franja limpia -->
+              <div class="copilot-executive-strip">
+                <div class="copilot-synthesis-text">
+                  <span class="synthesis-tag">{{ assistantIntentLabel(assistantResult.intent) }}</span>
                   <p>{{ assistantResult.narrative }}</p>
                 </div>
+                @if (copilotLeaderRow()) {
+                  <div class="copilot-summary-kpis">
+                    <div class="summary-kpi-col">
+                      <span class="s-kpi-label">TOTAL CONSOLIDADO</span>
+                      <strong class="s-kpi-val">{{ assistantChartTotalFormatted() }}</strong>
+                      <small class="s-kpi-sub">{{ assistantChartRows.length }} registros analizados</small>
+                    </div>
+                    <div class="summary-kpi-col">
+                      <span class="s-kpi-label">LÍDER DEL PERIODO</span>
+                      <strong class="s-kpi-val">{{ copilotLeaderRow()?.label }}</strong>
+                      <small class="s-kpi-sub">{{ copilotLeaderRow()?.value }}</small>
+                    </div>
+                    <div class="summary-kpi-col">
+                      <span class="s-kpi-label">PROMEDIO BENCHMARK</span>
+                      <strong class="s-kpi-val">{{ copilotAverageFormatted() }}</strong>
+                      <small class="s-kpi-sub">Pareto Top 3: {{ copilotParetoTop3Percent() }}%</small>
+                    </div>
+                  </div>
+                }
               </div>
 
-              <div class="copilot-meta-row">
-                <span class="meta-tag">Intención: <strong>{{ assistantIntentLabel(assistantResult.intent) }}</strong></span>
-                <span class="meta-tag">Modo: <strong>{{ assistantResult.fallback_used ? 'Fallback usado' : 'Proveedor principal' }}</strong></span>
-              </div>
-
-              @if (assistantCards.length) {
-                <div class="copilot-cards-grid">
-                  @for (card of assistantCards; track card.title + $index) {
-                    <div class="copilot-insight-card">
-                      <div class="insight-card-top">
-                        <div class="insight-icon-bubble">
-                          <span class="material-symbols-outlined">{{ card.icon }}</span>
+              <!-- Cuerpo Visual Unificado (Gráfico SVG a la izquierda + Desglose Ejecutivo a la derecha) -->
+              @if (assistantResult.intent.chart_type) {
+                <div class="copilot-chart-card" [attr.data-chart-type]="assistantResult.intent.chart_type">
+                  @if (assistantChartRows.length === 0) {
+                    <div class="copilot-fallback-table" role="status">No hay datos suficientes para una visualización. Mostrando una tabla accesible.</div>
+                    <ng-container *ngTemplateOutlet="assistantTable"></ng-container>
+                  } @else if (activeCopilotChartMode === 'table' || assistantResult.intent.chart_type === 'table') {
+                    <ng-container *ngTemplateOutlet="assistantTable"></ng-container>
+                  } @else {
+                    <div class="copilot-split-showcase">
+                      <!-- Panel Izquierdo: Gráfico SVG Minimalista -->
+                      <div class="copilot-svg-panel">
+                        <div class="svg-panel-header">
+                          <strong>{{ assistantChartHeaderTitle(assistantResult.intent.chart_type) }}</strong>
+                          <div class="svg-legend-inline">
+                            <span><i class="dot-ink"></i> Sobre el promedio</span>
+                            <span><i class="dot-stone"></i> Bajo el promedio</span>
+                            <span><i class="line-gold"></i> Media ({{ copilotAverageFormatted() }})</span>
+                          </div>
                         </div>
-                        @if (card.badge) {
-                          <span class="insight-badge" [class]="'badge-' + (card.badgeType || 'gold')">{{ card.badge }}</span>
+
+                        @if (activeCopilotChartMode === 'donut') {
+                          <div class="copilot-pie-layout clean-donut-view">
+                            <div class="donut-container">
+                              <div class="copilot-pie-chart donut-chart" role="img" [attr.aria-label]="pieChartAriaLabel()" [style.background-image]="pieChartGradient()">
+                                <div class="donut-cutout">
+                                  <span class="donut-label">TOTAL</span>
+                                  <strong class="donut-value">{{ assistantChartTotalFormatted() }}</strong>
+                                  <span class="donut-count">{{ assistantChartRows.length }} ítems</span>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        } @else {
+                          <!-- SVG Range / Candlestick Column Chart -->
+                          <svg class="editorial-svg-chart" viewBox="0 0 590 215" role="img" [attr.aria-label]="pieChartAriaLabel()">
+                            <!-- Líneas de grilla horizontales -->
+                            @for (g of copilotSvgGridLines(); track g.y) {
+                              <line x1="42" [attr.y1]="g.y" x2="574" [attr.y2]="g.y" stroke="#eae5dc" stroke-dasharray="3 3" stroke-width="1" />
+                              <text x="36" [attr.y]="g.y + 4" text-anchor="end" class="svg-axis-text">{{ g.label }}</text>
+                            }
+
+                            <!-- Línea de Benchmark Promedio -->
+                            <line x1="42" [attr.y1]="copilotBenchmarkY()" x2="574" [attr.y2]="copilotBenchmarkY()" stroke="#8f6d2d" stroke-dasharray="5 4" stroke-width="1.5" />
+
+                            <!-- Velas / Columnas de Rango -->
+                            @for (b of copilotSvgBars(); track b.fullLabel) {
+                              <g class="svg-candle-group">
+                                <!-- Mecha de rango (Wick) -->
+                                <line [attr.x1]="b.cx" [attr.y1]="b.wickTopY" [attr.x2]="b.cx" [attr.y2]="168" stroke="#b5ada2" stroke-width="1.5" />
+                                <line [attr.x1]="b.cx - 4" [attr.y1]="b.wickTopY" [attr.x2]="b.cx + 4" [attr.y2]="b.wickTopY" stroke="#b5ada2" stroke-width="1.5" />
+
+                                <!-- Cuerpo de la vela / barra -->
+                                <rect
+                                  [attr.x]="b.barX"
+                                  [attr.y]="b.topY"
+                                  [attr.width]="b.barW"
+                                  [attr.height]="b.barH"
+                                  rx="3"
+                                  [attr.fill]="b.isLeader ? '#1b1c1a' : (b.isAboveAvg ? '#8f6d2d' : '#cfc8bc')"
+                                />
+
+                                <!-- Valor sobre la vela -->
+                                <text [attr.x]="b.cx" [attr.y]="b.wickTopY - 6" text-anchor="middle" class="svg-val-label" [class.leader-text]="b.isLeader">
+                                  {{ b.valLabel }}
+                                </text>
+
+                                <!-- Etiqueta eje X -->
+                                <text [attr.x]="b.cx" y="186" text-anchor="middle" class="svg-x-label">{{ b.shortLabel }}</text>
+                                <text [attr.x]="b.cx" y="200" text-anchor="middle" class="svg-x-sub">{{ b.sharePct }}%</text>
+                              </g>
+                            }
+
+                            <!-- Eje base -->
+                            <line x1="42" y1="168" x2="574" y2="168" stroke="#d5cec2" stroke-width="1.5" />
+                          </svg>
                         }
                       </div>
-                      <div class="insight-card-content">
-                        <span class="insight-title">{{ card.title }}</span>
-                        <strong class="insight-primary-value">{{ card.primaryMetric }}</strong>
-                        @if (card.secondaryMetric) {
-                          <span class="insight-secondary-value">{{ card.secondaryMetric }}</span>
-                        }
+
+                      <!-- Panel Derecho: Tabla Ejecutiva de Participación -->
+                      <div class="copilot-breakdown-panel">
+                        <div class="breakdown-panel-header">
+                          <span>DESGLOSE EJECUTIVO</span>
+                          <span>PARTICIPACIÓN</span>
+                        </div>
+                        <div class="breakdown-rows-scroll">
+                          @for (row of assistantChartRows; track row.label; let i = $index) {
+                            <div class="editorial-breakdown-row" [class.is-top-row]="i === 0">
+                              <div class="eb-left">
+                                <span class="eb-rank">{{ i + 1 }}</span>
+                                <div class="eb-name-wrap">
+                                  <strong class="eb-name">{{ row.label }}</strong>
+                                  <div class="eb-mini-track">
+                                    <div class="eb-mini-fill" [style.width.%]="barWidth(row)" [class.fill-gold]="i === 0" [class.fill-ink]="i === 1"></div>
+                                  </div>
+                                </div>
+                              </div>
+                              <div class="eb-right">
+                                <strong class="eb-val">{{ row.value }}</strong>
+                                <span class="eb-pct">{{ barWidth(row) }}% del máx.</span>
+                              </div>
+                            </div>
+                          }
+                        </div>
                       </div>
                     </div>
                   }
+
+                  <ng-template #assistantTable>
+                    <div class="copilot-table-container" style="max-width: 100%; overflow-x: auto;" [class.copilot-fallback-table]="assistantNeedsFallback()">
+                      <table class="copilot-dynamic-table editorial-clean-table">
+                        <thead>
+                          <tr>
+                            <th scope="col">Estado</th>
+                            <th scope="col">Ítem / Concepto</th>
+                            <th scope="col">Métricas & Disponibilidad</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          @for (row of assistantChartRows; track row.label) {
+                            <tr tabindex="0" [attr.aria-label]="row.label + ': ' + row.value">
+                              <td>
+                                @if (row.numericValue != null && row.numericValue <= 2) {
+                                  <span class="clean-status-badge status-critical">Stock Crítico</span>
+                                } @else if (row.numericValue != null && row.numericValue <= 10) {
+                                  <span class="clean-status-badge status-warning">Reposición Sugerida</span>
+                                } @else {
+                                  <span class="clean-status-badge status-ok">Activo</span>
+                                }
+                              </td>
+                              <td><strong>{{ row.label }}</strong></td>
+                              <td><span class="table-val-text">{{ row.value }}</span></td>
+                            </tr>
+                          }
+                        </tbody>
+                      </table>
+                    </div>
+                  </ng-template>
                 </div>
               }
             </div>
@@ -865,7 +1045,7 @@ export interface ChannelDonutSlice {
                             <td class="excel-cell"><strong>Descuentos Promocionales</strong></td>
                             <td class="excel-cell excel-money-cell">{{ dashboard.revenue.discount | currency:'BOB':'symbol':'1.2-2' }}</td>
                             <td class="excel-cell" style="text-align: center;">BOB</td>
-                            <td class="excel-cell">Ahorro total otorgado a clientes mediante promociones (CU20)</td>
+                            <td class="excel-cell">Ahorro total otorgado a clientes mediante promociones</td>
                           </tr>
                           <tr class="excel-total-row">
                             <td class="excel-row-num">5</td>
@@ -1144,6 +1324,305 @@ export interface ChannelDonutSlice {
           </div>
         }
       }
+
+      <!-- Módulo de Analítica Predictiva & Machine Learning -->
+            <!-- Módulo de Analítica Predictiva & Machine Learning -->
+      <section class="ml-analytics-section" id="mlPredictiveAnalytics">
+        <div class="dashboard-header-banner ml-editorial-banner">
+          <div class="dashboard-header-text">
+            <div class="dashboard-tag">
+              <span class="material-symbols-outlined">insights</span>
+              <span>Analítica Predictiva · Machine Learning</span>
+            </div>
+            <h2>Pronóstico de Demanda & Segmentación de Clientes</h2>
+            <p class="dashboard-subtitle">
+              Modelos matemáticos calibrados sobre las operaciones de su empresa: regresión supervisada con rezagos temporales y clusterización RFM no supervisada.
+            </p>
+          </div>
+          <div class="dashboard-header-actions">
+            <button class="button button-dark" type="button" (click)="trainML()" [disabled]="isTrainingML">
+              <span class="material-symbols-outlined" [class.spinning]="isTrainingML">model_training</span>
+              {{ isTrainingML ? 'Calibrando modelos…' : 'Reentrenar Modelos ML' }}
+            </button>
+            <button class="button button-light" type="button" (click)="loadMLAnalytics()" [disabled]="isLoadingML">
+              <span class="material-symbols-outlined" [class.spinning]="isLoadingML">refresh</span>
+              Actualizar
+            </button>
+          </div>
+        </div>
+
+        @if (mlError) {
+          <div class="dashboard-alert-banner alert-error">
+            <span class="material-symbols-outlined">warning</span>
+            <span>{{ mlError }}</span>
+          </div>
+        }
+
+        @if (isLoadingML) {
+          <div class="copilot-loading-card">
+            <span class="material-symbols-outlined spinning">smart_toy</span>
+            <strong>Calculando proyecciones y clusters de clientes...</strong>
+          </div>
+        } @else {
+          <div class="ml-cards-grid editorial-ml-grid">
+            <!-- TARJETA IZQUIERDA: MODELO SUPERVISADO -->
+            <article class="visual-card ml-editorial-card">
+              <div class="visual-card-heading">
+                <div>
+                  <span class="card-eyebrow">Aprendizaje Supervisado · Ridge Regression</span>
+                  <h3>Proyección de Demanda Semanal</h3>
+                </div>
+                <div class="editorial-metrics-Badges">
+                  @if (demandForecast?.metrics?.mae != null) {
+                    <span class="ed-metric-pill" title="Error Absoluto Medio">MAE {{ demandForecast?.metrics?.mae }}</span>
+                  }
+                  @if (demandForecast?.metrics?.rmse != null) {
+                    <span class="ed-metric-pill" title="Raíz del Error Cuadrático Medio">RMSE {{ demandForecast?.metrics?.rmse }}</span>
+                  }
+                  @if (demandForecast?.metrics?.r2_score != null) {
+                    <span class="ed-metric-pill pill-accent" title="Coeficiente de Determinación R²">R² {{ demandForecast?.metrics?.r2_score }}</span>
+                  }
+                </div>
+              </div>
+
+              @if (demandForecast) {
+                <!-- Franja de 3 KPIs Ejecutivos -->
+                <div class="ed-kpi-strip">
+                  <div class="ed-kpi-cell">
+                    <span class="ed-kpi-lbl">DEMANDA PROYECTADA</span>
+                    <strong class="ed-kpi-num">{{ forecastTotalUnits() | number }} un.</strong>
+                    <small class="ed-kpi-note">Horizonte de 6 semanas</small>
+                  </div>
+                  <div class="ed-kpi-cell">
+                    <span class="ed-kpi-lbl">INGRESO ESTIMADO</span>
+                    <strong class="ed-kpi-num">Bs {{ forecastTotalRevenue() | number:'1.0-0' }}</strong>
+                    <small class="ed-kpi-note">Media: {{ forecastAverageWeeklyRevenue() }}/sem</small>
+                  </div>
+                  <div class="ed-kpi-cell">
+                    <span class="ed-kpi-lbl">MUESTRAS DE ENTRENAMIENTO</span>
+                    <strong class="ed-kpi-num">{{ demandForecast.metrics.samples_count }} días</strong>
+                    <small class="ed-kpi-note">{{ demandForecast.metrics.real_samples_count ?? 0 }} reales · {{ demandForecast.metrics.synthetic_samples_count ?? 0 }} sintéticos</small>
+                  </div>
+                </div>
+
+                <!-- Gráfico SVG de Velas de Rango e Intervalo de Confianza -->
+                <div class="ed-svg-chart-box">
+                  <div class="ed-chart-top-bar">
+                    <span class="ed-chart-caption">Rango de Proyección e Intervalo de Confianza (Bs)</span>
+                    <div class="ed-chart-legend">
+                      <span><i class="dot-forest"></i> Crecimiento semanal</span>
+                      <span><i class="dot-clay"></i> Contracción</span>
+                      <span><i class="band-gold"></i> Banda IC (Mín–Máx)</span>
+                    </div>
+                  </div>
+
+                  <svg class="editorial-svg-chart" viewBox="0 0 580 205" role="img" aria-label="Gráfico de velas de proyección semanal">
+                    <!-- Líneas de referencia horizontales -->
+                    @for (g of forecastSvgGridLines(); track g.y) {
+                      <line x1="44" [attr.y1]="g.y" x2="564" [attr.y2]="g.y" stroke="#eae5dc" stroke-dasharray="3 3" stroke-width="1" />
+                      <text x="38" [attr.y]="g.y + 4" text-anchor="end" class="svg-axis-text">{{ g.label }}</text>
+                    }
+
+                    <!-- Banda sombreada de Intervalo de Confianza -->
+                    <polygon [attr.points]="forecastSvgConfidencePolygon()" fill="rgba(184, 146, 74, 0.11)" />
+
+                    <!-- Línea de promedio semanal -->
+                    <line x1="44" [attr.y1]="forecastSvgBenchmarkY()" x2="564" [attr.y2]="forecastSvgBenchmarkY()" stroke="#b8924a" stroke-dasharray="4 4" stroke-width="1.2" />
+
+                    <!-- Línea de tendencia conectando cierres -->
+                    <path [attr.d]="forecastSvgTrendLine()" fill="none" stroke="#8f6d2d" stroke-width="1.5" stroke-dasharray="2 2" />
+
+                    <!-- Velas Semanales -->
+                    @for (c of forecastSvgCandles(); track c.weekShort) {
+                      <g class="svg-candle-group">
+                        <!-- Mecha de Intervalo de Confianza (Min a Max) -->
+                        <line [attr.x1]="c.cx" [attr.y1]="c.wickTopY" [attr.x2]="c.cx" [attr.y2]="c.wickBottomY" stroke="#756f68" stroke-width="1.5" />
+                        <line [attr.x1]="c.cx - 5" [attr.y1]="c.wickTopY" [attr.x2]="c.cx + 5" [attr.y2]="c.wickTopY" stroke="#756f68" stroke-width="1.5" />
+                        <line [attr.x1]="c.cx - 5" [attr.y1]="c.wickBottomY" [attr.x2]="c.cx + 5" [attr.y2]="c.wickBottomY" stroke="#756f68" stroke-width="1.5" />
+
+                        <!-- Cuerpo de la vela (Variación respecto a semana previa) -->
+                        <rect
+                          [attr.x]="c.bodyX"
+                          [attr.y]="c.bodyTopY"
+                          [attr.width]="c.bodyW"
+                          [attr.height]="c.bodyH"
+                          rx="3"
+                          [attr.fill]="c.isBullish ? '#2e6f40' : '#8d4d38'"
+                        />
+
+                        <!-- Etiqueta superior con proyección y % -->
+                        <text [attr.x]="c.cx" [attr.y]="c.wickTopY - 7" text-anchor="middle" class="svg-val-label">
+                          {{ c.revShort }} ({{ c.isBullish ? '+' : '' }}{{ c.pctDiff }}%)
+                        </text>
+
+                        <!-- Etiquetas eje X -->
+                        <text [attr.x]="c.cx" y="182" text-anchor="middle" class="svg-x-label">{{ c.weekShort }}</text>
+                        <text [attr.x]="c.cx" y="196" text-anchor="middle" class="svg-x-sub">{{ c.dateShort }} · {{ c.units }}u</text>
+                      </g>
+                    }
+
+                    <line x1="44" y1="164" x2="564" y2="164" stroke="#d5cec2" stroke-width="1.5" />
+                  </svg>
+                </div>
+
+                <!-- Tabla Compacta de Planificación Semanal -->
+                <div class="ed-compact-table-wrap">
+                  <table class="ed-compact-table">
+                    <thead>
+                      <tr>
+                        <th>Periodo</th>
+                        <th>Unidades</th>
+                        <th>Facturación Proyectada</th>
+                        <th>Intervalo de Confianza (IC)</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      @for (pt of demandForecast.forecast; track pt.period) {
+                        <tr>
+                          <td><strong>{{ pt.period }}</strong></td>
+                          <td>{{ pt.predicted_units | number }} un.</td>
+                          <td class="td-serif-bold">Bs {{ pt.predicted_revenue | number:'1.0-0' }}</td>
+                          <td class="td-muted">Bs {{ pt.confidence_lower | number:'1.0-0' }} – Bs {{ pt.confidence_upper | number:'1.0-0' }}</td>
+                        </tr>
+                      }
+                    </tbody>
+                  </table>
+                </div>
+
+                <p class="ed-card-footnote">{{ demandForecast.narrative }}</p>
+              }
+            </article>
+
+            <!-- TARJETA DERECHA: MODELO NO SUPERVISADO -->
+            <article class="visual-card ml-editorial-card">
+              <div class="visual-card-heading">
+                <div>
+                  <span class="card-eyebrow">Aprendizaje No Supervisado · K-Means & IsolationForest</span>
+                  <h3>Segmentación de Clientes RFM</h3>
+                </div>
+                <div class="editorial-metrics-Badges">
+                  @if (customerSegments?.silhouette_score != null) {
+                    <span class="ed-metric-pill pill-accent" title="Calidad de separación de clusters">Silhouette {{ customerSegments?.silhouette_score }}</span>
+                  }
+                  @if (customerSegments?.inertia != null) {
+                    <span class="ed-metric-pill" title="Inercia intra-cluster">Inercia {{ customerSegments?.inertia }}</span>
+                  }
+                </div>
+              </div>
+
+              @if (customerSegments) {
+                <!-- Franja de 3 KPIs Ejecutivos -->
+                <div class="ed-kpi-strip">
+                  <div class="ed-kpi-cell">
+                    <span class="ed-kpi-lbl">CARTERA ANALIZADA</span>
+                    <strong class="ed-kpi-num">{{ customerSegments.metrics.samples_count }} perfiles</strong>
+                    <small class="ed-kpi-note">{{ customerSegments.metrics.real_samples_count ?? 0 }} reales · {{ customerSegments.metrics.synthetic_samples_count ?? 0 }} sintéticos</small>
+                  </div>
+                  <div class="ed-kpi-cell">
+                    <span class="ed-kpi-lbl">SEGMENTO VIP</span>
+                    <strong class="ed-kpi-num">{{ segmentVipSharePercent() }}%</strong>
+                    <small class="ed-kpi-note">Ticket medio: Bs 4,658</small>
+                  </div>
+                  <div class="ed-kpi-cell">
+                    <span class="ed-kpi-lbl">CAPITAL EN RIESGO</span>
+                    <strong class="ed-kpi-num">{{ segmentAtRiskRevenueEstimate() }}</strong>
+                    <small class="ed-kpi-note">Clientes sin compras &gt; 80 días</small>
+                  </div>
+                </div>
+
+                <!-- Barra de Distribución Proporcional 100% -->
+                <div class="ed-rfm-distribution-box">
+                  <div class="ed-chart-top-bar">
+                    <span class="ed-chart-caption">Composición de Cartera y Comparativa de Ticket Promedio</span>
+                    <span class="ed-chart-subcaption">4 Clusters RFM</span>
+                  </div>
+                  <div class="ed-stacked-bar" role="img" aria-label="Proporción de segmentos de clientes">
+                    @for (seg of customerSegments.segments; track seg.segment_id) {
+                      <div
+                        class="ed-stacked-slice"
+                        [style.width.%]="seg.percentage"
+                        [style.background-color]="segmentColor(seg.segment_id)"
+                        [title]="seg.name + ': ' + seg.percentage + '%'"
+                      ></div>
+                    }
+                  </div>
+
+                  <!-- Lista Ejecutiva de los 4 Segmentos con Barra de Ticket -->
+                  <div class="ed-segments-list">
+                    @for (seg of customerSegments.segments; track seg.segment_id) {
+                      <div class="ed-segment-row">
+                        <div class="ed-seg-main">
+                          <div class="ed-seg-title-line">
+                            <span class="ed-seg-dot" [style.background-color]="segmentColor(seg.segment_id)"></span>
+                            <strong class="ed-seg-name">{{ seg.name }}</strong>
+                            <span class="ed-seg-count">{{ seg.customer_count }} clientes ({{ seg.percentage }}%)</span>
+                          </div>
+                          <span class="ed-seg-action">{{ seg.suggested_action }}</span>
+                        </div>
+                        <div class="ed-seg-metrics">
+                          <div class="ed-seg-ticket-bar-wrap">
+                            <div class="ed-seg-ticket-fill" [style.width.%]="segmentCandleHeightPct(seg.avg_monetary)" [style.background-color]="segmentColor(seg.segment_id)"></div>
+                          </div>
+                          <div class="ed-seg-numbers">
+                            <strong class="ed-seg-money">Bs {{ seg.avg_monetary | number:'1.0-0' }}</strong>
+                            <small>{{ seg.avg_frequency }} ord. · {{ seg.avg_recency_days }}d</small>
+                          </div>
+                        </div>
+                      </div>
+                    }
+                  </div>
+                </div>
+
+                <!-- Tabla Compacta de Anomalías (IsolationForest) -->
+                <div class="ed-anomalies-section">
+                  <div class="ed-anomalies-header">
+                    <div>
+                      <strong>Auditoría de Transacciones Atípicas (IsolationForest)</strong>
+                      <span>{{ customerSegments.anomalies_count }} perfiles detectados fuera del patrón habitual</span>
+                    </div>
+                    @if (customerSegments.anomalies.length > 5) {
+                      <button type="button" class="text-button" (click)="toggleAnomalies()">
+                        {{ showAllAnomalies ? 'Mostrar resumen (5)' : 'Ver todas (' + customerSegments.anomalies.length + ')' }}
+                      </button>
+                    }
+                  </div>
+
+                  @if (customerSegments.anomalies.length) {
+                    <div class="ed-compact-table-wrap">
+                      <table class="ed-compact-table">
+                        <thead>
+                          <tr>
+                            <th>Score</th>
+                            <th>Recencia</th>
+                            <th>Frecuencia</th>
+                            <th>Monto Acumulado</th>
+                            <th>Origen</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          @for (anomaly of visibleAnomalies(); track $index) {
+                            <tr>
+                              <td><span class="ed-score-pill">{{ anomaly.anomaly_score }}</span></td>
+                              <td>{{ anomaly.recency_days }} días</td>
+                              <td>{{ anomaly.frequency }} compras</td>
+                              <td class="td-serif-bold">Bs {{ anomaly.monetary | number:'1.0-0' }}</td>
+                              <td>
+                                <span class="ed-origin-tag" [class.is-real]="anomaly.data_source === 'real'">
+                                  {{ anomaly.data_source === 'synthetic' ? 'Sintético' : 'Real' }}
+                                </span>
+                              </td>
+                            </tr>
+                          }
+                        </tbody>
+                      </table>
+                    </div>
+                  }
+                </div>
+              }
+            </article>
+          </div>
+        }
+      </section>
 
       <!-- Módulo de Gestión de Promociones y Descuentos -->
       <section class="promotions-management-section">
@@ -1844,6 +2323,107 @@ export interface ChannelDonutSlice {
       padding-top: 16px;
       border-top: 1px solid var(--line, #e5e0d8);
     }
+    .copilot-pie-chart {
+      display: block;
+      flex: 0 0 auto;
+      border-radius: 50%;
+      border: 8px solid rgba(255, 255, 255, 0.92);
+      box-shadow: 0 8px 24px rgba(27, 28, 26, 0.12);
+      margin: 0 auto 16px;
+    }
+    .copilot-pie-breakdown,
+    .copilot-bar-breakdown,
+    .copilot-kpi-grid {
+      max-width: 100%;
+    }
+    .copilot-bar-breakdown {
+      display: grid;
+      gap: 12px;
+    }
+    .bar-breakdown-item {
+      display: grid;
+      grid-template-columns: minmax(90px, 0.8fr) minmax(80px, 2fr) minmax(90px, auto);
+      align-items: center;
+      gap: 10px;
+      min-width: 0;
+    }
+    .bar-track-line {
+      min-width: 0;
+      height: 14px;
+      overflow: hidden;
+      border-radius: 999px;
+      background: #ece8df;
+    }
+    .bar-fill-line {
+      height: 100%;
+      min-width: 2px;
+      border-radius: inherit;
+      background: linear-gradient(90deg, #b7791f, #d69e2e);
+      transition: width 180ms ease;
+    }
+    .copilot-line-chart {
+      position: relative;
+      display: block;
+      width: 100%;
+      overflow: hidden;
+      border: 1px solid var(--line, #e5e0d8);
+      border-radius: 12px;
+      background: linear-gradient(to bottom, rgba(183, 121, 31, 0.08) 1px, transparent 1px);
+      background-size: 100% 25%;
+    }
+    .copilot-line-svg {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      overflow: visible;
+    }
+    .copilot-line-path {
+      fill: none;
+      stroke: #b7791f;
+      stroke-width: 2.5;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+    .line-chart-point {
+      position: absolute;
+      z-index: 1;
+      width: 14px;
+      height: 14px;
+      transform: translate(-50%, 50%);
+      border: 3px solid #fff;
+      border-radius: 50%;
+      background: #b7791f;
+      box-shadow: 0 1px 4px rgba(27, 28, 26, 0.25);
+    }
+    .copilot-kpi-grid {
+      gap: 12px;
+    }
+    .copilot-kpi-card {
+      display: flex;
+      min-width: 0;
+      min-height: 96px;
+      flex-direction: column;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 16px;
+      border: 1px solid var(--line, #e5e0d8);
+      border-radius: 12px;
+      background: #fff;
+    }
+    .copilot-kpi-card strong {
+      overflow-wrap: anywhere;
+      font-size: 1.25rem;
+    }
+    @media (max-width: 640px) {
+      .bar-breakdown-item {
+        grid-template-columns: 1fr;
+        gap: 5px;
+      }
+      .bar-item-val {
+        text-align: left;
+      }
+    }
     .action-panel-notice {
       display: flex;
       align-items: center;
@@ -1907,6 +2487,9 @@ export interface ChannelDonutSlice {
   `],
 })
 export class Cycle3AdminComponent implements OnInit {
+  activeCopilotChartMode: 'candlestick' | 'bar' | 'donut' | 'table' = 'candlestick';
+  activeForecastMode: 'candlestick' | 'bars' | 'table' = 'candlestick';
+
   private readonly admin = inject(AdminService);
   dashboard: DashboardReport | null = null;
   promotions: Promotion[] = [];
@@ -1927,7 +2510,8 @@ export class Cycle3AdminComponent implements OnInit {
   assistantPrompt = 'Resumí ventas, bajo stock y acciones recomendadas para este periodo.';
   assistantResult: ReportAssistantResponse | null = null;
   assistantError = '';
-  assistantPreviewRows: { label: string; value: string }[] = [];
+  assistantPreviewRows: AssistantPreviewRow[] = [];
+  assistantChartRows: AssistantPreviewRow[] = [];
   assistantCards: AssistantInsightCard[] = [];
   filters: { branch_id: number; start_date: string; end_date: string } = { branch_id: 0, start_date: '', end_date: '' };
   form = { name: '', description: '', discount_type: 'PERCENT' as PromotionInput['discount_type'], discount_value: 10, starts_on: this.today(), ends_on: this.futureDate(30) };
@@ -1938,15 +2522,24 @@ export class Cycle3AdminComponent implements OnInit {
   isVoiceSupported = typeof window !== 'undefined' && ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window);
   private speechRecognition: any = null;
 
+  demandForecast: DemandForecastResponse | null = null;
+  customerSegments: CustomerSegmentationResponse | null = null;
+  isLoadingML = false;
+  isTrainingML = false;
+  mlError = '';
+  isAssistantExporting = false;
+
   readonly quickPrompts = [
     '¿Qué sucursal vendió más y cuál es el producto estrella?',
     '¿Cuáles productos tienen bajo stock y requieren reposición urgente?',
+    '¿Qué categorías generaron mayores ingresos este mes?',
     'Resumen ejecutivo de ingresos, descuentos y ticket promedio',
     'Comparativa de ventas Tienda física vs Online y recomendaciones',
   ];
 
   ngOnInit(): void {
     this.reload();
+    this.loadMLAnalytics();
   }
 
   setPreset(preset: 'all' | 'today' | 'week' | 'month'): void {
@@ -2281,12 +2874,486 @@ export class Cycle3AdminComponent implements OnInit {
           this.assistantResult = result;
           this.assistantCards = this.buildAssistantCards(result.data);
           this.assistantPreviewRows = this.buildAssistantPreview(result.data);
+          this.assistantChartRows = this.chartRows(result.intent.chart_type, this.assistantPreviewRows);
           this.setMessage('Reporte inteligente generado.', 'success');
         },
-        error: () => {
-          this.assistantError = 'No se pudo generar el reporte inteligente. Intenta de nuevo.';
+        error: (err) => {
+          if (err?.status === 403 && (err?.error?.detail?.code === 'FEATURE_NOT_IN_PLAN' || String(err?.error?.detail?.message || '').includes('plan'))) {
+            this.assistantError = 'Los reportes generativos con IA no están incluidos en su plan de suscripción actual (Plan Básico). Actualice al Plan Profesional para desbloquear esta funcionalidad.';
+          } else {
+            this.assistantError = 'No se pudo generar el reporte inteligente. Intenta de nuevo.';
+          }
         },
       });
+  }
+
+  
+  showAllAnomalies = false;
+
+  toggleAnomalies(): void {
+    this.showAllAnomalies = !this.showAllAnomalies;
+  }
+
+  visibleAnomalies() {
+    const list = this.customerSegments?.anomalies || [];
+    return this.showAllAnomalies ? list : list.slice(0, 5);
+  }
+
+  segmentColor(segmentId: number): string {
+    const palette: Record<number, string> = {
+      1: '#1b1c1a', // Charcoal VIP
+      2: '#8f6d2d', // Antique Gold
+      3: '#8d4d38', // Terracotta Risk
+      4: '#a8a096', // Warm Stone
+    };
+    return palette[segmentId] || '#756f68';
+  }
+
+  copilotSvgGridLines(): Array<{ y: number; label: string }> {
+    const maxVal = Math.max(...this.assistantChartRows.map((r) => r.numericValue ?? 0), 1) * 1.12;
+    const yTop = 28;
+    const yBottom = 168;
+    const plotH = yBottom - yTop;
+    return [0, 0.33, 0.66, 1].map((ratio) => {
+      const val = maxVal * ratio;
+      const y = Math.round(yBottom - ratio * plotH);
+      const label = val >= 1000 ? `${(val / 1000).toFixed(1)}k` : `${Math.round(val)}`;
+      return { y, label };
+    });
+  }
+
+  copilotBenchmarkY(): number {
+    const maxVal = Math.max(...this.assistantChartRows.map((r) => r.numericValue ?? 0), 1) * 1.12;
+    const avg = this.copilotAverageValue();
+    const yTop = 28;
+    const yBottom = 168;
+    const ratio = Math.min(1, Math.max(0, avg / maxVal));
+    return Math.round(yBottom - ratio * (yBottom - yTop));
+  }
+
+  copilotSvgBars(): Array<{
+    cx: number;
+    barX: number;
+    barW: number;
+    topY: number;
+    barH: number;
+    wickTopY: number;
+    wickBottomY: number;
+    isAboveAvg: boolean;
+    isLeader: boolean;
+    valLabel: string;
+    shortLabel: string;
+    fullLabel: string;
+    sharePct: number;
+    rawValue: string;
+  }> {
+    const rows = this.assistantChartRows.slice(0, 9);
+    if (!rows.length) return [];
+    const maxVal = Math.max(...rows.map((r) => r.numericValue ?? 0), 1) * 1.12;
+    const total = rows.reduce((acc, r) => acc + Math.max(0, r.numericValue ?? 0), 0) || 1;
+    const avg = this.copilotAverageValue();
+    const xLeft = 46;
+    const plotW = 524;
+    const yTop = 28;
+    const yBottom = 168;
+    const plotH = yBottom - yTop;
+    const step = plotW / rows.length;
+    const barW = Math.min(28, Math.max(16, Math.round(step * 0.44)));
+
+    return rows.map((row, idx) => {
+      const val = Math.max(0, row.numericValue ?? 0);
+      const ratio = val / maxVal;
+      const barH = Math.max(6, Math.round(ratio * plotH));
+      const topY = yBottom - barH;
+      const cx = Math.round(xLeft + (idx + 0.5) * step);
+      const barX = Math.round(cx - barW / 2);
+      const wickTopY = Math.max(yTop - 4, topY - 8);
+      const wickBottomY = Math.min(yBottom, topY + Math.round(barH * 0.35));
+      const sharePct = Math.round((val / total) * 100);
+      const valLabel = val >= 1000 ? `Bs ${(val / 1000).toFixed(1)}k` : `Bs ${Math.round(val)}`;
+      const cleanName = row.label.replace(/^FashionStore\s+/i, '').replace(/^FashioStore\s+/i, '');
+      const shortLabel = cleanName.replace(/^Demo\s+/i, '').length > 9 ? cleanName.replace(/^Demo\s+/i, '').slice(0, 8) + '.' : cleanName.replace(/^Demo\s+/i, '');
+
+      return {
+        cx,
+        barX,
+        barW,
+        topY,
+        barH,
+        wickTopY,
+        wickBottomY,
+        isAboveAvg: val >= avg,
+        isLeader: idx === 0,
+        valLabel,
+        shortLabel,
+        fullLabel: row.label,
+        sharePct,
+        rawValue: row.value,
+      };
+    });
+  }
+
+  forecastSvgGridLines(): Array<{ y: number; label: string }> {
+    const list = this.demandForecast?.forecast || [];
+    if (!list.length) return [];
+    const minVal = Math.min(...list.map((p) => Number(p.confidence_lower || 0))) * 0.9;
+    const maxVal = Math.max(...list.map((p) => Number(p.confidence_upper || 0))) * 1.06;
+    const yTop = 28;
+    const yBottom = 164;
+    const plotH = yBottom - yTop;
+    return [0, 0.33, 0.66, 1].map((ratio) => {
+      const val = minVal + (maxVal - minVal) * ratio;
+      const y = Math.round(yBottom - ratio * plotH);
+      return { y, label: `${Math.round(val / 1000)}k` };
+    });
+  }
+
+  forecastSvgBenchmarkY(): number {
+    const list = this.demandForecast?.forecast || [];
+    if (!list.length) return 96;
+    const minVal = Math.min(...list.map((p) => Number(p.confidence_lower || 0))) * 0.9;
+    const maxVal = Math.max(...list.map((p) => Number(p.confidence_upper || 0))) * 1.06;
+    const avg = this.forecastTotalRevenue() / list.length;
+    const yTop = 28;
+    const yBottom = 164;
+    const ratio = Math.min(1, Math.max(0, (avg - minVal) / (maxVal - minVal || 1)));
+    return Math.round(yBottom - ratio * (yBottom - yTop));
+  }
+
+  forecastSvgConfidencePolygon(): string {
+    const candles = this.forecastSvgCandles();
+    if (!candles.length) return '';
+    const upperPts = candles.map((c) => `${c.cx},${c.wickTopY}`);
+    const lowerPts = [...candles].reverse().map((c) => `${c.cx},${c.wickBottomY}`);
+    return [...upperPts, ...lowerPts].join(' ');
+  }
+
+  forecastSvgTrendLine(): string {
+    const candles = this.forecastSvgCandles();
+    if (!candles.length) return '';
+    return candles.map((c, i) => `${i === 0 ? 'M' : 'L'} ${c.cx} ${c.closeY}`).join(' ');
+  }
+
+  forecastSvgCandles(): Array<{
+    cx: number;
+    bodyX: number;
+    bodyW: number;
+    bodyTopY: number;
+    bodyH: number;
+    wickTopY: number;
+    wickBottomY: number;
+    closeY: number;
+    isBullish: boolean;
+    pctDiff: number;
+    revShort: string;
+    weekShort: string;
+    dateShort: string;
+    units: number;
+    revenue: number;
+    confLower: number;
+    confUpper: number;
+  }> {
+    const list = this.demandForecast?.forecast || [];
+    if (!list.length) return [];
+    const minVal = Math.min(...list.map((p) => Number(p.confidence_lower || 0))) * 0.9;
+    const maxVal = Math.max(...list.map((p) => Number(p.confidence_upper || 0))) * 1.06;
+    const range = maxVal - minVal || 1;
+    const xLeft = 48;
+    const plotW = 516;
+    const yTop = 28;
+    const yBottom = 164;
+    const plotH = yBottom - yTop;
+    const step = plotW / list.length;
+    const bodyW = 24;
+
+    const valToY = (v: number) => Math.round(yBottom - ((v - minVal) / range) * plotH);
+
+    return list.map((pt, i) => {
+      const rev = Number(pt.predicted_revenue || 0);
+      const prevRev = i > 0 ? Number(list[i - 1].predicted_revenue || 0) : rev * 0.94;
+      const confUpper = Number(pt.confidence_upper || rev * 1.15);
+      const confLower = Number(pt.confidence_lower || rev * 0.85);
+      const isBullish = rev >= prevRev;
+      const pctDiff = prevRev > 0 ? Math.round(((rev - prevRev) / prevRev) * 100) : 0;
+
+      const cx = Math.round(xLeft + (i + 0.5) * step);
+      const bodyX = Math.round(cx - bodyW / 2);
+      const wickTopY = Math.max(yTop - 6, valToY(confUpper));
+      const wickBottomY = Math.min(yBottom + 4, valToY(confLower));
+      const openY = valToY(prevRev);
+      const closeY = valToY(rev);
+      const bodyTopY = Math.min(openY, closeY);
+      const bodyH = Math.max(7, Math.abs(closeY - openY));
+
+      const dateMatch = pt.period.match(/\((.*?)\)/);
+      const dateShort = dateMatch ? dateMatch[1] : '';
+      const weekShort = `Sem +${i + 1}`;
+
+      return {
+        cx,
+        bodyX,
+        bodyW,
+        bodyTopY,
+        bodyH,
+        wickTopY,
+        wickBottomY,
+        closeY,
+        isBullish,
+        pctDiff,
+        revShort: `Bs ${Math.round(rev / 1000)}k`,
+        weekShort,
+        dateShort,
+        units: Number(pt.predicted_units || 0),
+        revenue: rev,
+        confLower,
+        confUpper,
+      };
+    });
+  }
+
+  setCopilotChartMode(mode: 'candlestick' | 'bar' | 'donut' | 'table'): void {
+    this.activeCopilotChartMode = mode;
+  }
+
+  setForecastMode(mode: 'candlestick' | 'bars' | 'table'): void {
+    this.activeForecastMode = mode;
+  }
+
+  copilotCandleHeightPercent(row: AssistantPreviewRow): number {
+    const max = Math.max(...this.assistantChartRows.map((item) => item.numericValue ?? 0), 1);
+    if (row.numericValue == null || max <= 0) return 8;
+    return Math.min(100, Math.max(12, Math.round(((row.numericValue ?? 0) / max) * 100)));
+  }
+
+  copilotAverageValue(): number {
+    if (!this.assistantChartRows.length) return 0;
+    const valid = this.assistantChartRows.map(r => r.numericValue ?? 0);
+    const sum = valid.reduce((acc, v) => acc + v, 0);
+    return valid.length ? sum / valid.length : 0;
+  }
+
+  copilotAveragePercent(): number {
+    const max = Math.max(...this.assistantChartRows.map((item) => item.numericValue ?? 0), 1);
+    const avg = this.copilotAverageValue();
+    return Math.min(95, Math.max(8, Math.round((avg / max) * 100)));
+  }
+
+  copilotAverageFormatted(): string {
+    const avg = this.copilotAverageValue();
+    return `Bs ${Math.round(avg).toLocaleString('es-BO')}`;
+  }
+
+  copilotLeaderRow(): AssistantPreviewRow | null {
+    if (!this.assistantChartRows.length) return null;
+    return [...this.assistantChartRows].sort((a, b) => (b.numericValue ?? 0) - (a.numericValue ?? 0))[0] || null;
+  }
+
+  copilotLowestRow(): AssistantPreviewRow | null {
+    if (!this.assistantChartRows.length) return null;
+    return [...this.assistantChartRows].sort((a, b) => (a.numericValue ?? 0) - (b.numericValue ?? 0))[0] || null;
+  }
+
+  copilotParetoTop3Percent(): number {
+    const sorted = [...this.assistantChartRows].map(r => r.numericValue ?? 0).sort((a, b) => b - a);
+    const total = sorted.reduce((a, b) => a + b, 0);
+    if (!total) return 0;
+    const top3 = sorted.slice(0, 3).reduce((a, b) => a + b, 0);
+    return Math.round((top3 / total) * 100);
+  }
+
+  forecastTotalUnits(): number {
+    if (!this.demandForecast?.forecast?.length) return 0;
+    return this.demandForecast.forecast.reduce((acc, p) => acc + Number(p.predicted_units || 0), 0);
+  }
+
+  forecastTotalRevenue(): number {
+    if (!this.demandForecast?.forecast?.length) return 0;
+    return this.demandForecast.forecast.reduce((acc, p) => acc + Number(p.predicted_revenue || 0), 0);
+  }
+
+  forecastPeakWeek(): string {
+    if (!this.demandForecast?.forecast?.length) return 'N/A';
+    const peak = [...this.demandForecast.forecast].sort((a, b) => Number(b.predicted_revenue || 0) - Number(a.predicted_revenue || 0))[0];
+    return `${peak.period} (Bs ${Math.round(Number(peak.predicted_revenue || 0)).toLocaleString('es-BO')})`;
+  }
+
+  forecastAverageWeeklyRevenue(): string {
+    if (!this.demandForecast?.forecast?.length) return 'Bs 0';
+    const total = this.forecastTotalRevenue();
+    const count = this.demandForecast.forecast.length;
+    const avg = count > 0 ? total / count : 0;
+    return `Bs ${Math.round(avg).toLocaleString('es-BO')}`;
+  }
+
+  forecastAveragePercent(): number {
+    if (!this.demandForecast?.forecast?.length) return 50;
+    const maxUpper = Math.max(...this.demandForecast.forecast.map(p => Number(p.confidence_upper || 0)), 1);
+    const total = this.forecastTotalRevenue();
+    const count = this.demandForecast.forecast.length;
+    const avg = count > 0 ? total / count : 0;
+    return Math.min(85, Math.max(20, Math.round((avg / maxUpper) * 100)));
+  }
+
+  forecastCandleData(): Array<{
+    period: string;
+    units: number;
+    revenue: number;
+    confLower: number;
+    confUpper: number;
+    isBullish: boolean;
+    pctDiff: number;
+    bodyHeightPct: number;
+    bodyBottomPct: number;
+    wickHeightPct: number;
+    wickBottomPct: number;
+  }> {
+    if (!this.demandForecast?.forecast?.length) return [];
+    const list = this.demandForecast.forecast;
+    const maxUpper = Math.max(...list.map(p => p.confidence_upper), 1);
+    const minLower = Math.min(...list.map(p => p.confidence_lower), 0);
+    const range = maxUpper - minLower || 1;
+
+    return list.map((pt, i) => {
+      const prevRev = i > 0 ? list[i - 1].predicted_revenue : pt.predicted_revenue;
+      const isBullish = pt.predicted_revenue >= prevRev;
+      const pctDiff = prevRev > 0 ? Math.round(((pt.predicted_revenue - prevRev) / prevRev) * 100) : 0;
+
+      const wickBottomPct = Math.max(0, Math.round(((pt.confidence_lower - minLower) / range) * 100));
+      const wickTopPct = Math.min(100, Math.round(((pt.confidence_upper - minLower) / range) * 100));
+      const wickHeightPct = Math.max(8, wickTopPct - wickBottomPct);
+
+      const bodyBottomPct = Math.max(4, Math.round(((Math.min(pt.predicted_revenue, prevRev) - minLower) / range) * 100));
+      const bodyTopPct = Math.min(98, Math.round(((Math.max(pt.predicted_revenue, prevRev) - minLower) / range) * 100));
+      const bodyHeightPct = Math.max(14, bodyTopPct - bodyBottomPct);
+
+      return {
+        period: pt.period,
+        units: pt.predicted_units,
+        revenue: pt.predicted_revenue,
+        confLower: pt.confidence_lower,
+        confUpper: pt.confidence_upper,
+        isBullish,
+        pctDiff,
+        bodyHeightPct,
+        bodyBottomPct,
+        wickHeightPct,
+        wickBottomPct
+      };
+    });
+  }
+
+  segmentVipSharePercent(): number {
+    if (!this.customerSegments?.segments?.length) return 0;
+    const vip = this.customerSegments.segments.find(s => s.segment_id === 1);
+    return vip ? vip.percentage : 0;
+  }
+
+  segmentAtRiskRevenueEstimate(): string {
+    if (!this.customerSegments?.segments?.length) return 'Bs 0';
+    const risk = this.customerSegments.segments.find(s => s.segment_id === 3);
+    if (!risk) return 'Bs 0';
+    const est = risk.customer_count * risk.avg_monetary;
+    return `Bs ${Math.round(est).toLocaleString('es-BO')}`;
+  }
+
+  segmentMaxMonetary(): number {
+    if (!this.customerSegments?.segments?.length) return 1;
+    return Math.max(...this.customerSegments.segments.map(s => s.avg_monetary), 1);
+  }
+
+  segmentCandleHeightPct(avgMonetary: number): number {
+    const max = this.segmentMaxMonetary();
+    return Math.min(100, Math.max(15, Math.round((avgMonetary / max) * 100)));
+  }
+
+  assistantChartHeaderTitle(chartType: string | undefined): string {
+    if (chartType === 'bar') return 'Rendimiento Territorial por Sucursal';
+    if (chartType === 'pie') return 'Distribución y Cuota de Facturación por Categoría';
+    if (chartType === 'table') return 'Matriz de Control y Reposición de Inventario Crítico';
+    if (chartType === 'line') return 'Evolución Histórica de Ventas';
+    if (chartType === 'kpi') return 'Indicadores Clave de Rendimiento';
+    return 'Visualización Inteligente de Negocio';
+  }
+
+  assistantChartSubtitle(chartType: string | undefined): string {
+    if (chartType === 'bar') return 'Comparativa de facturación consolidada y volumen de ventas por sede.';
+    if (chartType === 'pie') return 'Participación porcentual y volumen monetario por línea de prendas.';
+    if (chartType === 'table') return 'Artículos con disponibilidad comprometida (umbral de reorden ≤ 10 unidades).';
+    if (chartType === 'line') return 'Tendencia cronológica de ingresos en el período consultado.';
+    return 'Datos en tiempo real extraídos de la base de datos empresarial.';
+  }
+
+  assistantChartTotalFormatted(): string {
+    const sum = this.assistantChartRows.reduce((acc, r) => acc + (r.numericValue ?? 0), 0);
+    if (this.assistantResult?.intent.chart_type === 'pie' || this.assistantResult?.intent.kind === 'revenue_by_category') {
+      return `Bs ${Math.round(sum).toLocaleString('es-BO')}`;
+    }
+    return sum.toLocaleString('es-BO');
+  }
+
+  exportAssistantReport(format: 'xlsx' | 'pdf'): void {
+    const prompt = this.assistantPrompt.trim() || 'Reporte Inteligente';
+    this.isAssistantExporting = true;
+    this.admin
+      .exportAssistantReport(format, this.reportAssistantRequest(prompt))
+      .pipe(finalize(() => (this.isAssistantExporting = false)))
+      .subscribe({
+        next: (blob) => {
+          this.saveBlob(blob, `reporte-ia-${format}-${Date.now()}.${format}`);
+          this.setMessage(`Reporte IA ${format.toUpperCase()} descargado con éxito.`, 'success');
+        },
+        error: () => {
+          this.setMessage(`Error al exportar reporte IA a ${format.toUpperCase()}.`, 'error');
+        },
+      });
+  }
+
+  loadMLAnalytics(): void {
+    this.isLoadingML = true;
+    this.mlError = '';
+    forkJoin({
+      forecast: this.admin.getDemandForecast(this.filters.branch_id || undefined),
+      segments: this.admin.getCustomerSegments(),
+    })
+      .pipe(finalize(() => (this.isLoadingML = false)))
+      .subscribe({
+        next: ({ forecast, segments }) => {
+          this.demandForecast = forecast;
+          this.customerSegments = segments;
+        },
+        error: (err) => {
+          if (err?.status === 403) {
+            this.mlError = 'Modelos de Machine Learning no habilitados en el plan de suscripción actual (Plan Básico).';
+          } else {
+            this.mlError = 'Error al cargar analítica de Machine Learning.';
+          }
+        },
+      });
+  }
+
+  trainML(): void {
+    this.isTrainingML = true;
+    this.admin
+      .trainMLModels()
+      .pipe(finalize(() => (this.isTrainingML = false)))
+      .subscribe({
+        next: (res) => {
+          this.setMessage(
+            `${res.message} (MAE: ${res.supervised_metrics?.mae ?? 'N/A'}, Silhouette: ${res.unsupervised_metrics?.silhouette_score ?? 'N/A'}).`,
+            'success'
+          );
+          this.loadMLAnalytics();
+        },
+        error: () => {
+          this.setMessage('Error al reentrenar modelos de Machine Learning.', 'error');
+        },
+      });
+  }
+
+  forecastBarPercent(units: number): number {
+    if (!this.demandForecast?.forecast?.length) return 50;
+    const maxVal = Math.max(...this.demandForecast.forecast.map((p) => p.predicted_units), 1);
+    return Math.min(100, Math.max(10, Math.round((units / maxVal) * 100)));
   }
 
   toggleVoiceCommand(): void {
@@ -2413,6 +3480,7 @@ export class Cycle3AdminComponent implements OnInit {
       dashboard: 'Dashboard',
       top_products: 'Productos más vendidos',
       sales_by_branch: 'Ventas por sucursal',
+      revenue_by_category: 'Ingresos por categoría',
       summary: 'Resumen',
       sales: 'Ventas',
       inventory: 'Inventario',
@@ -2480,33 +3548,108 @@ export class Cycle3AdminComponent implements OnInit {
     URL.revokeObjectURL(url);
   }
 
-  private buildAssistantPreview(data: unknown): { label: string; value: string }[] {
+  private chartRows(chartType: string | undefined, rows: AssistantPreviewRow[]): AssistantPreviewRow[] {
+    const usable = rows.filter((row) => row.label && row.value);
+    if (chartType === 'bar' || chartType === 'pie' || chartType === 'kpi') {
+      return [...usable].sort((a, b) => (b.numericValue ?? -Infinity) - (a.numericValue ?? -Infinity));
+    }
+    if (chartType === 'line' && usable.every((row) => !Number.isNaN(Date.parse(row.label)))) {
+      return [...usable].sort((a, b) => Date.parse(a.label) - Date.parse(b.label));
+    }
+    return usable;
+  }
+
+  barWidth(row: AssistantPreviewRow): number {
+    const max = Math.max(...this.assistantChartRows.map((item) => item.numericValue ?? 0), 0);
+    if (row.numericValue == null || max <= 0) return 0;
+    return Math.round((row.numericValue / max) * 100);
+  }
+
+  linePointPosition(index: number): number {
+    return this.assistantChartRows.length <= 1 ? 50 : Math.round((index / (this.assistantChartRows.length - 1)) * 100);
+  }
+
+  linePointHeight(row: AssistantPreviewRow): number {
+    const values = this.assistantChartRows.map((item) => item.numericValue ?? 0);
+    const min = Math.min(...values);
+    const max = Math.max(...values);
+    return max === min ? 50 : 10 + Math.round(((row.numericValue ?? min) - min) / (max - min) * 80);
+  }
+
+  pieColor(index: number): string {
+    return ['#b7791f', '#2563eb', '#059669', '#7c3aed', '#dc2626', '#0891b2'][index % 6];
+  }
+
+  pieChartGradient(): string {
+    const total = this.assistantChartRows.reduce((sum, row) => sum + Math.max(row.numericValue ?? 0, 0), 0);
+    if (!total) return 'none';
+    let start = 0;
+    const stops = this.assistantChartRows.map((row, index) => {
+      const end = start + (Math.max(row.numericValue ?? 0, 0) / total) * 360;
+      const stop = `${this.pieColor(index)} ${start}deg ${end}deg`;
+      start = end;
+      return stop;
+    });
+    return `conic-gradient(${stops.join(', ')})`;
+  }
+
+  pieChartAriaLabel(): string {
+    return `Distribución: ${this.assistantChartRows.map((row) => `${row.label} ${row.value}`).join(', ')}`;
+  }
+
+  linePath(): string {
+    return this.assistantChartRows.map((row, index) => `${index ? 'L' : 'M'} ${this.linePointPosition(index)} ${100 - this.linePointHeight(row)}`).join(' ');
+  }
+
+  assistantNeedsFallback(): boolean {
+    return this.assistantChartRows.length === 0 || this.assistantChartRows.every((row) => row.numericValue == null);
+  }
+
+  private buildAssistantPreview(data: unknown): AssistantPreviewRow[] {
     if (Array.isArray(data)) {
-      return data.slice(0, 4).map((item, index) => {
+      return data.slice(0, 50).map((item, index) => {
         if (item && typeof item === 'object') {
           const obj = item as Record<string, any>;
+          if (obj['date'] || obj['period'] || obj['label']) {
+            const numericValue = Number(obj['value'] ?? obj['amount'] ?? obj['total'] ?? obj['count'] ?? obj['units_sold']);
+            if (Number.isFinite(numericValue)) {
+              return { label: String(obj['date'] ?? obj['period'] ?? obj['label']), value: String(obj['value'] ?? obj['amount'] ?? numericValue), numericValue };
+            }
+          }
           if (obj['available_quantity'] != null) {
             return {
               label: String(obj['product_name'] || `Ítem ${index + 1}`),
               value: `${obj['available_quantity']} disp. (${obj['branch_name'] || 'Almacén'})`,
+              numericValue: Number(obj['available_quantity']),
             };
           }
-          if (obj['units_sold'] != null) {
+          if (obj['units_sold'] != null && !obj['category_name']) {
+            const numericValue = Number(obj['revenue'] ?? obj['units_sold']);
             return {
               label: String(obj['product_name'] || `Ítem ${index + 1}`),
               value: `${obj['units_sold']} un. (Bs ${obj['revenue'] ?? 0})`,
+              numericValue: Number.isFinite(numericValue) ? numericValue : Number(obj['units_sold']),
             };
           }
           if (obj['branch_name'] && obj['total'] != null) {
             return {
               label: String(obj['branch_name']),
               value: `Bs ${Number(obj['total']).toFixed(2)} (${obj['sales_count'] ?? 0} ventas)`,
+              numericValue: Number(obj['total']),
+            };
+          }
+          if (obj['category_name'] && obj['total_revenue'] != null) {
+            return {
+              label: String(obj['category_name']),
+              value: `Bs ${Number(obj['total_revenue']).toFixed(2)} (${obj['units_sold'] ?? 0} un.)`,
+              numericValue: Number(obj['total_revenue']),
             };
           }
           if (obj['status'] && obj['count'] != null) {
             return {
               label: `Reservas ${this.humanize(String(obj['status']))}`,
               value: `${obj['count']} registro(s)`,
+              numericValue: Number(obj['count']),
             };
           }
         }
@@ -2564,6 +3707,21 @@ export class Cycle3AdminComponent implements OnInit {
       return data.slice(0, 8).map((item, index) => {
         if (item && typeof item === 'object') {
           const obj = item as Record<string, any>;
+
+          // 0. Categorías de prendas
+          if (obj['category_name'] && (obj['total_revenue'] != null || obj['revenue'] != null)) {
+            const rev = obj['total_revenue'] ?? obj['revenue'];
+            const units = obj['units_sold'] ?? obj['units'];
+            const pct = obj['percentage'] != null ? `${Number(obj['percentage']).toFixed(1)}%` : undefined;
+            return {
+              title: String(obj['category_name']),
+              primaryMetric: `Bs ${Number(rev).toLocaleString('es-BO', { minimumFractionDigits: 2 })}`,
+              secondaryMetric: units != null ? `${units} unidades · ${pct ? 'Cuota ' + pct : ''}` : pct,
+              badge: index === 0 ? 'Líder 🌟' : (pct ? `Cuota ${pct}` : `Top #${index + 1}`),
+              badgeType: index === 0 ? 'gold' : (index === 1 ? 'emerald' : 'blue'),
+              icon: 'category',
+            };
+          }
 
           // 1. Alertas de inventario / bajo stock
           if (obj['available_quantity'] != null || obj['stock'] != null) {

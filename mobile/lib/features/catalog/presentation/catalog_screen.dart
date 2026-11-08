@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/offline/connectivity_monitor.dart';
 import '../../../core/providers.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../shared/fashion_ui.dart';
+import '../../offline/presentation/offline_operations_screen.dart';
 import '../data/catalog_models.dart';
 import 'product_detail_screen.dart';
 
@@ -20,12 +22,17 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen> {
   int page = 1;
   int totalPages = 1;
   bool loading = true;
+  bool isOffline = false;
   String? error;
 
   @override
   void initState() {
     super.initState();
     load();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(syncCatalogServiceProvider).init();
+      ref.read(syncTransactionServiceProvider).refreshPendingCount();
+    });
   }
 
   @override
@@ -47,6 +54,7 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen> {
       setState(() {
         items = result.items;
         totalPages = result.totalPages;
+        isOffline = result.isOffline;
         loading = false;
       });
     } catch (_) {
@@ -56,6 +64,28 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen> {
           error = 'No pudimos cargar el catálogo en este momento.';
         });
       }
+    }
+  }
+
+  Future<void> _handleSync() async {
+    final syncService = ref.read(syncCatalogServiceProvider);
+    final success = await syncService.syncCatalog();
+    if (!mounted) return;
+    if (success) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Catálogo offline sincronizado correctamente.'),
+          backgroundColor: Color(0xFF0F766E),
+        ),
+      );
+      await load();
+    } else if (syncService.syncError != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error al sincronizar: ${syncService.syncError}'),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
     }
   }
 
@@ -153,8 +183,158 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen> {
           ),
         ),
       ),
+      _syncStatusBar(),
     ],
   );
+
+  Widget _syncStatusBar() {
+    final sync = ref.watch(syncCatalogServiceProvider);
+    final connectivity = ref.watch(connectivityMonitorProvider);
+    final lastSync = sync.lastSync;
+    final lastSyncStr = lastSync != null
+        ? '${lastSync.day.toString().padLeft(2, '0')}/${lastSync.month.toString().padLeft(2, '0')}/${lastSync.year} ${lastSync.hour.toString().padLeft(2, '0')}:${lastSync.minute.toString().padLeft(2, '0')}'
+        : 'Sin sincronización previa';
+
+    return Container(
+      margin: const EdgeInsets.only(top: 14),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: isOffline ? const Color(0xFFFEF3C7) : const Color(0xFFF1F5F9),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: isOffline ? const Color(0xFFF59E0B) : const Color(0xFFCBD5E1),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                isOffline ? Icons.cloud_off_outlined : Icons.cloud_done_outlined,
+                size: 18,
+                color: isOffline ? const Color(0xFFB45309) : const Color(0xFF0F766E),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  isOffline
+                      ? 'Modo offline · Catálogo local'
+                      : 'En línea · Showroom activo',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 13,
+                    color: isOffline
+                        ? const Color(0xFF92400E)
+                        : const Color(0xFF0F766E),
+                  ),
+                ),
+              ),
+              if (sync.isSyncing)
+                const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              else
+                TextButton.icon(
+                  style: TextButton.styleFrom(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    minimumSize: Size.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                  onPressed: _handleSync,
+                  icon: const Icon(Icons.sync, size: 14),
+                  label: const Text(
+                    'Descargar offline',
+                    style: TextStyle(fontSize: 12),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Conectividad: ${_connectivityLabel(connectivity.status)}',
+            style: const TextStyle(fontSize: 11, color: Color(0xFF475569)),
+          ),
+          Text(
+            'Última actualización: $lastSyncStr',
+            style: const TextStyle(fontSize: 11, color: Color(0xFF64748B)),
+          ),
+          const SizedBox(height: 8),
+          _offlineOperationsBar(context),
+          if (isOffline) ...[
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFFFBEB),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Row(
+                children: [
+                  Icon(Icons.warning_amber_rounded,
+                      size: 16, color: Color(0xFFD97706)),
+                  SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      'Precios y disponibilidad locales pueden estar desactualizados.',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Color(0xFFB45309),
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  String _connectivityLabel(ConnectivityStatus status) {
+    switch (status) {
+      case ConnectivityStatus.unknown:
+        return 'Verificando conexión…';
+      case ConnectivityStatus.offline:
+        return 'Sin conexión';
+      case ConnectivityStatus.online:
+        return 'Conexión disponible';
+    }
+  }
+
+  Widget _offlineOperationsBar(BuildContext context) {
+    final txSync = ref.watch(syncTransactionServiceProvider);
+    final count = txSync.pendingCount;
+
+    return OutlinedButton.icon(
+      style: OutlinedButton.styleFrom(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        minimumSize: Size.zero,
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      ),
+      onPressed: () {
+        Navigator.of(context).push(
+          MaterialPageRoute(builder: (_) => const OfflineOperationsScreen()),
+        );
+      },
+      icon: Badge(
+        isLabelVisible: count > 0,
+        label: Text('$count'),
+        child: const Icon(Icons.outbox_outlined, size: 16),
+      ),
+      label: Text(
+        count > 0
+            ? 'Bandeja offline ($count pendiente${count == 1 ? '' : 's'})'
+            : 'Bandeja offline',
+        style: const TextStyle(fontSize: 12),
+      ),
+    );
+  }
 
   Widget _productCard(BuildContext context, int index) {
     final item = items[index];

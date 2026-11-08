@@ -2,11 +2,12 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
+from app.modules.auth.dependencies import bind_optional_tenant_context
 from app.modules.catalog import service
 from app.modules.catalog.schemas import AvailabilityItem, CatalogDetail, CatalogFilters, CatalogNavigation, CatalogPage
 from app.modules.virtual_fitting.schemas import VtonTryOnRequest, VtonTryOnResponse
 
-router = APIRouter(prefix="/catalog", tags=["catalog"])
+router = APIRouter(prefix="/catalog", tags=["catalog"], dependencies=[Depends(bind_optional_tenant_context)])
 
 
 @router.get("", response_model=CatalogPage)

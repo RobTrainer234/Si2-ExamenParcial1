@@ -26,6 +26,8 @@
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
 	<key>NSCameraUsageDescription</key>
 	<string>FashionStore usa la cámara para el vestidor virtual.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>FashionStore usa el micrófono para transcribir consultas de reportes.</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>UIApplicationSceneManifest</key>

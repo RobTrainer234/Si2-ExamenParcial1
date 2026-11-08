@@ -49,10 +49,18 @@ class UserBranchSummary(BaseModel):
     name: str
 
 
+class UserTenantSummary(BaseModel):
+    id: int
+    name: str
+    status: str
+
+
 class UserResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
+    tenant_id: int | None = None
+    tenant: UserTenantSummary | None = None
     first_name: str
     last_name: str
     email: EmailStr

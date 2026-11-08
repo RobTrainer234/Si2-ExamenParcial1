@@ -47,6 +47,8 @@ class _VirtualFittingScreenState extends ConsumerState<VirtualFittingScreen> {
   // Camera capture preview. No live garment overlay is rendered over the feed.
   CameraController? _camera;
   CameraDescription? _cameraDescription;
+  List<CameraDescription> _availableCameras = const [];
+  int _cameraIndex = 0;
   bool _cameraAvailable = false;
   bool _cameraActive = false;
   bool _capturingPhoto = false;
@@ -98,12 +100,14 @@ class _VirtualFittingScreenState extends ConsumerState<VirtualFittingScreen> {
         });
         return;
       }
+      final preferredIndex = cameras.indexWhere(
+        (item) => item.lensDirection == CameraLensDirection.front,
+      );
       setState(() {
+        _availableCameras = cameras;
+        _cameraIndex = preferredIndex >= 0 ? preferredIndex : 0;
         _cameraAvailable = true;
-        _cameraDescription = cameras.firstWhere(
-          (item) => item.lensDirection == CameraLensDirection.front,
-          orElse: () => cameras.first,
-        );
+        _cameraDescription = cameras[_cameraIndex];
         _cameraError = null;
       });
     } catch (_) {
@@ -135,10 +139,15 @@ class _VirtualFittingScreenState extends ConsumerState<VirtualFittingScreen> {
       return;
     }
 
+    await _startSelectedCamera();
+  }
+
+  Future<void> _startSelectedCamera() async {
+    final messenger = ScaffoldMessenger.of(context);
     try {
       final controller = CameraController(
         _cameraDescription!,
-        ResolutionPreset.medium,
+        ResolutionPreset.low,
         enableAudio: false,
       );
       await controller.initialize();
@@ -161,6 +170,22 @@ class _VirtualFittingScreenState extends ConsumerState<VirtualFittingScreen> {
       }
     }
   }
+
+  Future<void> _switchCamera() async {
+    if (_availableCameras.length < 2 || !_cameraActive) return;
+    await _disposeCamera();
+    if (!mounted) return;
+    setState(() {
+      _cameraIndex = (_cameraIndex + 1) % _availableCameras.length;
+      _cameraDescription = _availableCameras[_cameraIndex];
+    });
+    await _startSelectedCamera();
+  }
+
+  String get _cameraLabel =>
+      _cameraDescription?.lensDirection == CameraLensDirection.front
+      ? 'Frontal'
+      : 'Trasera';
 
   Future<void> _disposeCamera() async {
     final controller = _camera;
@@ -380,7 +405,7 @@ class _VirtualFittingScreenState extends ConsumerState<VirtualFittingScreen> {
     } on ApiException catch (error) {
       if (mounted) {
         final message = error.statusCode == 502 || error.statusCode == 503
-            ? 'El motor VTON no está disponible ahora. No vamos a mostrar una simulación local ni una foto de catálogo.'
+            ? 'Gemini no está disponible ahora. No mostraremos una simulación local ni una foto de catálogo.'
             : 'No pudimos generar la prueba virtual. Capturá otra foto con buena luz e intentá nuevamente.';
         setState(() {
           _loadingVton = false;
@@ -700,7 +725,6 @@ class _VirtualFittingScreenState extends ConsumerState<VirtualFittingScreen> {
   Widget build(BuildContext context) {
     final calcePorcentaje = (_vtonResult?['calce_porcentaje'] as num?)
         ?.toDouble();
-    final hombrosAlineacion = _vtonResult?['alineacion_hombros'] as String?;
     final veredicto = _vtonResult?['veredicto_estilista'] as String?;
     final tallaSugerida = _vtonResult?['talla_sugerida'] as String?;
     final providerStatus =
@@ -719,7 +743,7 @@ class _VirtualFittingScreenState extends ConsumerState<VirtualFittingScreen> {
               ),
             ),
             const Text(
-              'MOTOR V-TON • ALTA COSTURA',
+              'GEMINI • PROBADOR VIRTUAL',
               style: TextStyle(
                 fontSize: 10,
                 letterSpacing: 1.2,
@@ -762,7 +786,7 @@ class _VirtualFittingScreenState extends ConsumerState<VirtualFittingScreen> {
               children: [
                 _buildHeaderBadge(),
                 const SizedBox(height: AppSpacing.sm),
-                _buildFittingViewport(calcePorcentaje, hombrosAlineacion),
+                _buildFittingViewport(),
                 const SizedBox(height: AppSpacing.sm),
                 _buildStylistCard(
                   calcePorcentaje,
@@ -800,7 +824,7 @@ class _VirtualFittingScreenState extends ConsumerState<VirtualFittingScreen> {
           const Icon(Icons.auto_awesome, color: AppColors.gold, size: 14),
           const SizedBox(width: AppSpacing.xs),
           const Text(
-            'LOOK ATELIER • AI V-TON',
+            'LOOK ATELIER • GEMINI AI',
             style: TextStyle(
               color: AppColors.gold,
               fontSize: 12,
@@ -831,10 +855,7 @@ class _VirtualFittingScreenState extends ConsumerState<VirtualFittingScreen> {
     );
   }
 
-  Widget _buildFittingViewport(
-    double? calcePorcentaje,
-    String? hombrosAlineacion,
-  ) {
+  Widget _buildFittingViewport() {
     return Container(
       height: 380,
       decoration: BoxDecoration(
@@ -869,7 +890,7 @@ class _VirtualFittingScreenState extends ConsumerState<VirtualFittingScreen> {
             Positioned(
               top: AppSpacing.sm,
               right: AppSpacing.sm,
-              child: _buildCalceHudBadge(calcePorcentaje, hombrosAlineacion),
+              child: _buildGeminiHudBadge(),
             ),
 
             Positioned(
@@ -910,6 +931,44 @@ class _VirtualFittingScreenState extends ConsumerState<VirtualFittingScreen> {
                 ),
               ),
             ),
+            if (_cameraActive && _availableCameras.length > 1)
+              Positioned(
+                top: 62,
+                right: AppSpacing.sm,
+                child: Material(
+                  color: Colors.black54,
+                  borderRadius: BorderRadius.circular(AppRadii.sm),
+                  child: InkWell(
+                    onTap: _switchCamera,
+                    borderRadius: BorderRadius.circular(AppRadii.sm),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 7,
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(
+                            Icons.flip_camera_ios_outlined,
+                            color: Colors.white,
+                            size: 17,
+                          ),
+                          const SizedBox(width: 5),
+                          Text(
+                            _cameraLabel,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 10,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
 
             if (_loadingVton)
               Container(
@@ -938,10 +997,7 @@ class _VirtualFittingScreenState extends ConsumerState<VirtualFittingScreen> {
     );
   }
 
-  Widget _buildCalceHudBadge(
-    double? calcePorcentaje,
-    String? hombrosAlineacion,
-  ) {
+  Widget _buildGeminiHudBadge() {
     return Container(
       padding: const EdgeInsets.symmetric(
         horizontal: AppSpacing.sm,
@@ -969,17 +1025,13 @@ class _VirtualFittingScreenState extends ConsumerState<VirtualFittingScreen> {
                 width: 7,
                 height: 7,
                 decoration: BoxDecoration(
-                  color: calcePorcentaje == null
-                      ? Colors.orangeAccent
-                      : Colors.greenAccent,
+                  color: Colors.greenAccent,
                   shape: BoxShape.circle,
                 ),
               ),
               const SizedBox(width: 5),
               Text(
-                calcePorcentaje == null
-                    ? 'VTON PENDIENTE'
-                    : 'CALCE ANATÓMICO: ${calcePorcentaje.toStringAsFixed(1)}%',
+                'RESULTADO GEMINI',
                 style: const TextStyle(
                   color: AppColors.gold,
                   fontSize: 11,
@@ -991,7 +1043,7 @@ class _VirtualFittingScreenState extends ConsumerState<VirtualFittingScreen> {
           ),
           const SizedBox(height: 2),
           Text(
-            hombrosAlineacion ?? 'Capturá una foto para analizar el calce',
+            'Foto + prenda procesadas por Gemini',
             style: const TextStyle(
               color: Colors.white70,
               fontSize: 9,
@@ -1025,7 +1077,7 @@ class _VirtualFittingScreenState extends ConsumerState<VirtualFittingScreen> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Text(
-                  'Foto de ${_pendingPhotoSourceLabel ?? "usuario"} lista. Confirmá para enviarla al motor V-TON.',
+                  'Foto de ${_pendingPhotoSourceLabel ?? "usuario"} lista. Confirmá para enviarla a Gemini.',
                   textAlign: TextAlign.center,
                   style: const TextStyle(color: Colors.white, fontSize: 12),
                 ),
@@ -1117,8 +1169,7 @@ class _VirtualFittingScreenState extends ConsumerState<VirtualFittingScreen> {
             mainAxisSize: MainAxisSize.min,
             children: [
               const StatusPill(
-                label:
-                    'Preview sin overlay: capturá una foto para generar VTON',
+                label: 'Vista previa: capturá una foto para enviarla a Gemini',
               ),
               if (_cameraError != null) ...[
                 const SizedBox(height: AppSpacing.xs),
@@ -1256,9 +1307,7 @@ class _VirtualFittingScreenState extends ConsumerState<VirtualFittingScreen> {
                     borderRadius: BorderRadius.circular(AppRadii.sm),
                   ),
                   child: Text(
-                    calcePorcentaje == null
-                        ? 'CALCE: PENDIENTE'
-                        : 'CALCE: ${calcePorcentaje >= 98 ? "EXCELENTE" : "ÓPTIMO"}',
+                    'RESULTADO: GEMINI',
                     style: TextStyle(
                       color: Colors.green.shade800,
                       fontWeight: FontWeight.bold,
@@ -1280,7 +1329,7 @@ class _VirtualFittingScreenState extends ConsumerState<VirtualFittingScreen> {
                   const SizedBox(width: AppSpacing.xs),
                   Expanded(
                     child: Text(
-                      'Estado proveedor: ${providerStatus ?? "completado"}',
+                      'Gemini: ${providerStatus ?? "completado"}',
                       style: const TextStyle(
                         color: AppColors.charcoalMuted,
                         fontSize: 12,
@@ -1300,7 +1349,7 @@ class _VirtualFittingScreenState extends ConsumerState<VirtualFittingScreen> {
                 Expanded(
                   child: Text(
                     veredicto ??
-                        'Resultado AI pendiente. Capturá una foto para que el motor V-TON analice esta prenda sobre tu silueta.',
+                        'Elegí o capturá una foto para que Gemini coloque la prenda seleccionada.',
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
                       color: AppColors.charcoalMuted,
                       height: 1.3,

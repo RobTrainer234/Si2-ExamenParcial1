@@ -20,22 +20,39 @@ Save/share is intentionally not added in this version because doing it safely wo
 
 No Gemini, Stripe, or other secret keys belong in the mobile app. Configure only public/runtime values via `--dart-define`; provider secrets stay on the backend.
 
-## Stripe test checkout and sandbox demo
+## Checkout con tarjeta y sandbox
 
-Real card checkout uses Stripe test mode through the mobile PaymentSheet. Configure it at launch time; do not bundle secret keys in the app:
+El checkout con tarjeta usa PaymentSheet cuando el backend devuelve un intent real. Si el backend no tiene `STRIPE_SECRET_KEY`, devuelve un intent sandbox y la app lo confirma directamente en el backend sin abrir Stripe. La clave secreta nunca se incluye en la app:
 
 ```bash
 flutter run \
   --dart-define=API_URL=http://10.0.2.2:8000/api/v1 \
-  --dart-define=STRIPE_PUBLISHABLE_KEY=pk_test_your_key \
+  --dart-define=STRIPE_PUBLISHABLE_KEY=pk_live_or_test_public_key \
   --dart-define=STRIPE_CURRENCY=USD
 ```
+
+Para generar una APK de producción apuntando al backend desplegado:
+
+```bash
+# PowerShell: usa una sola línea o el acento grave (`) como continuación.
+flutter build apk --release `
+  --dart-define="API_URL=http://fashionstore.3.94.34.64.nip.io/api/v1" `
+  --dart-define="STRIPE_PUBLISHABLE_KEY=pk_live_or_test_public_key" `
+  --dart-define="STRIPE_CURRENCY=USD"
+```
+
+La APK se genera en `build/app/outputs/flutter-apk/app-release.apk`. La
+configuración release conserva los metadatos necesarios de ML Kit, WorkManager
+y Stripe para evitar cierres al iniciar. Para una instalación rápida en un
+dispositivo conectado por ADB usa `flutter install`.
+La clave secreta `STRIPE_SECRET_KEY` debe configurarse únicamente en el
+backend; la app móvil solo recibe la clave pública.
 
 The app calls the existing backend flow only:
 
 1. `POST /purchases/digital`
 2. `POST /payments/stripe/intent`
-3. Stripe PaymentSheet/client confirmation
+3. Si el intent es real, Stripe PaymentSheet/client confirmation; si es sandbox, confirmación backend
 4. `POST /payments/stripe/confirm`
 
 The separate **Sandbox demo** button still uses `/payments/electronic` and `/payments/electronic/notification` for simulated payments.
@@ -67,5 +84,5 @@ equipo que ejecuta el backend.
 dart format lib test
 flutter analyze
 flutter test
-flutter build apk --debug --dart-define=API_URL=http://10.0.2.2:8000/api/v1 --dart-define=STRIPE_PUBLISHABLE_KEY=pk_test_placeholder --dart-define=STRIPE_CURRENCY=USD
+flutter build apk --debug --dart-define=API_URL=http://10.0.2.2:8000/api/v1 --dart-define=STRIPE_PUBLISHABLE_KEY=pk_test_your_key --dart-define=STRIPE_CURRENCY=USD
 ```

@@ -50,6 +50,40 @@ describe('AuthService', () => {
     expect(service.isAuthenticated()).toBe(false);
   });
 
+  it('starts email verification with the exact email payload', () => {
+    service.startEmailVerification('ada@example.com').subscribe();
+
+    const request = http.expectOne('/api/v1/subscriptions/email-verification/start');
+    expect(request.request.method).toBe('POST');
+    expect(request.request.body).toEqual({ email: 'ada@example.com' });
+    request.flush({ accepted: true, email_sent: true });
+  });
+
+  it('verifies the code with the exact payload and returns checkout capability', () => {
+    service.verifyEmail('ada@example.com', '123456').subscribe((response) => {
+      expect(response).toEqual({ verified: true, checkout_capability: 'capability-token' });
+    });
+
+    const request = http.expectOne('/api/v1/subscriptions/email-verification/verify');
+    expect(request.request.method).toBe('POST');
+    expect(request.request.body).toEqual({ email: 'ada@example.com', code: '123456' });
+    request.flush({ verified: true, checkout_capability: 'capability-token' });
+  });
+
+  it('requires checkout capability in paid checkout payload', () => {
+    service.registerPaidCheckout({
+      company_name: 'Acme', first_name: 'Ada', last_name: 'Lovelace', email: 'ada@example.com',
+      phone: '70000000', password: 'StrongPass1!', plan_code: 'BASIC', billing_interval: 'annual',
+      checkout_capability: 'capability-token',
+    }).subscribe();
+
+    const request = http.expectOne('/api/v1/subscriptions/paid-checkout');
+    expect(request.request.body).toEqual(expect.objectContaining({
+      plan_code: 'BASIC', billing_interval: 'annual', checkout_capability: 'capability-token',
+    }));
+    request.flush({ session_id: 'cs_test', session_url: 'https://checkout.test' });
+  });
+
   it('clears the local session without calling logout', () => {
     service.login('client@example.com', 'Secure123!').subscribe();
     const loginRequest = http.expectOne('/api/v1/auth/login');

@@ -1,15 +1,17 @@
 import 'package:flutter/foundation.dart';
 
 import '../../../core/errors/api_exception.dart';
-import '../data/auth_repository.dart';
+import '../../../core/offline/offline_database.dart';
 import '../../../core/storage/session_storage.dart';
+import '../data/auth_repository.dart';
 
 class AuthController extends ChangeNotifier {
-  AuthController(this._repository) {
+  AuthController(this._repository, {this.offlineDb}) {
     restore();
   }
 
   final AuthRepository _repository;
+  final OfflineDatabase? offlineDb;
   SessionData? session;
   bool loading = true;
   String? error;
@@ -30,6 +32,7 @@ class AuthController extends ChangeNotifier {
 
   Future<void> logout() async {
     await _repository.logout(session);
+    await offlineDb?.clearAll();
     session = null;
     notifyListeners();
   }
@@ -39,7 +42,14 @@ class AuthController extends ChangeNotifier {
     error = null;
     notifyListeners();
     try {
+      final oldTenantId = session?.user['tenant_id'];
+      final oldUserId = session?.user['id'];
       session = await action();
+      final newTenantId = session?.user['tenant_id'];
+      final newUserId = session?.user['id'];
+      if (oldTenantId != newTenantId || oldUserId != newUserId) {
+        await offlineDb?.clearAll();
+      }
       return true;
     } on ApiException catch (exception) {
       error = exception.message;

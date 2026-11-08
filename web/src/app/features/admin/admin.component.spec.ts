@@ -1,9 +1,10 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { of } from 'rxjs';
+import { HttpErrorResponse } from '@angular/common/http';
+import { of, throwError } from 'rxjs';
 import { vi } from 'vitest';
 
 import { AdminService } from '../../core/admin/admin.service';
-import { ProductSummary } from '../../core/models/admin.models';
+import { AdminUser, Branch, City, ProductSummary } from '../../core/models/admin.models';
 import { AdminComponent } from './admin.component';
 
 const emptyPage = { items: [], page: 1, page_size: 20, total: 0, total_pages: 0 };
@@ -127,5 +128,161 @@ describe('AdminComponent product identifier suggestions', () => {
     await createComponent();
 
     expect(component.inferSizeMetadata('Tall')).toEqual({ size_type: 'ALPHA', sort_order: 100 });
+  });
+});
+
+describe('AdminComponent branch assignment', () => {
+  let fixture: ComponentFixture<AdminComponent>;
+  let component: AdminComponent;
+  let service: Record<string, ReturnType<typeof vi.fn>>;
+
+  const user = (data: Partial<AdminUser> = {}): AdminUser => ({
+    id: data.id ?? 7,
+    first_name: data.first_name ?? 'Ana',
+    last_name: data.last_name ?? 'Encargada',
+    email: data.email ?? 'ana@tenant.test',
+    phone: data.phone ?? '70000000',
+    role: data.role ?? 'BRANCH_MANAGER',
+    is_active: data.is_active ?? true,
+    branch_ids: data.branch_ids ?? [],
+    supplier_id: data.supplier_id ?? null,
+  });
+
+  const branch = (data: Partial<Branch> = {}): Branch => ({
+    id: data.id ?? 11,
+    city_id: data.city_id ?? 3,
+    city_name: data.city_name ?? 'Santa Cruz',
+    name: data.name ?? 'Sucursal Centro',
+    address: data.address ?? 'Av. Principal 123',
+    phone: data.phone ?? '70000001',
+    latitude: data.latitude ?? null,
+    longitude: data.longitude ?? null,
+    is_active: data.is_active ?? true,
+  });
+
+  const city = (data: Partial<City> = {}): City => ({
+    id: data.id ?? 3,
+    name: data.name ?? 'Santa Cruz',
+    is_active: data.is_active ?? true,
+  });
+
+  const createComponent = async (users: AdminUser[] = [], branches: Branch[] = []) => {
+    service = {
+      users: vi.fn(() => of({ ...emptyPage, items: users })),
+      cities: vi.fn(() => of({ ...emptyPage, items: [city()] })),
+      branches: vi.fn(() => of({ ...emptyPage, items: branches })),
+      categories: vi.fn(() => of(emptyPage)), sizes: vi.fn(() => of(emptyPage)), colors: vi.fn(() => of(emptyPage)),
+      suppliers: vi.fn(() => of(emptyPage)), seasons: vi.fn(() => of(emptyPage)), collections: vi.fn(() => of(emptyPage)), products: vi.fn(() => of(emptyPage)),
+      createBranch: vi.fn(), updateUser: vi.fn(),
+    };
+
+    await TestBed.configureTestingModule({
+      imports: [AdminComponent],
+      providers: [{ provide: AdminService, useValue: service }],
+    })
+      .overrideComponent(AdminComponent, { set: { template: `
+        @if (section === 'users' && branchAssignableUsers.length) {
+          <section class="branch-assignment-panel">
+            <select [value]="branchAssignmentUserId" (change)="selectBranchAssignmentUser($any($event.target).value)">
+              @for (user of branchAssignableUsers; track user.id) { <option [value]="user.id">{{ user.first_name }} {{ user.last_name }}</option> }
+            </select>
+            @for (branch of activeBranches; track branch.id) {
+              <label><input type="checkbox" [checked]="branchAssignmentIds.includes(branch.id)" (change)="toggleBranchAssignment(branch.id)">{{ branch.name }}</label>
+            }
+            <button type="button" (click)="saveBranchAssignment()">Guardar asignación</button>
+          </section>
+        }
+        @if (section === 'locations' && showBranchForm) {
+          <form [formGroup]="branchForm" (ngSubmit)="createBranch()">
+            <select formControlName="city_id"><option value="3">Santa Cruz</option></select>
+            <input formControlName="name"><input formControlName="address"><input formControlName="phone">
+            <button type="submit">Añadir sucursal</button>
+          </form>
+        }
+        @if (error) { <p class="error admin-alert">{{ error }}</p> }
+      ` } })
+      .compileComponents();
+
+    fixture = TestBed.createComponent(AdminComponent);
+    component = fixture.componentInstance;
+    fixture.detectChanges();
+  };
+
+  it('shows only active tenant branches when assigning an employee', async () => {
+    await createComponent([user({ branch_ids: [11] })], [branch({ id: 11, name: 'Sucursal Centro' }), branch({ id: 12, name: 'Sucursal Cerrada', is_active: false })]);
+
+    component.section = 'users';
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.querySelector('.branch-assignment-panel')?.textContent).toContain('Sucursal Centro');
+    expect(fixture.nativeElement.querySelector('.branch-assignment-panel')?.textContent).not.toContain('Sucursal Cerrada');
+    expect(component.branchAssignableUsers).toEqual([expect.objectContaining({ id: 7 })]);
+  });
+
+  it('saves the selected employee branch assignment and updates the tenant user state', async () => {
+    const updated = user({ branch_ids: [11, 13] });
+    await createComponent([user({ branch_ids: [11] })], [branch({ id: 11 }), branch({ id: 13, name: 'Sucursal Norte' })]);
+    service['updateUser'].mockReturnValue(of(updated));
+
+    component.selectBranchAssignmentUser('7');
+    component.toggleBranchAssignment(13);
+    component.saveBranchAssignment();
+
+    expect(service['updateUser']).toHaveBeenCalledWith(7, { branch_ids: [11, 13] });
+    expect(component.users).toEqual([updated]);
+    expect(component.error).toBe('');
+  });
+
+  it('shows Spanish error feedback when branch assignment cannot be saved', async () => {
+    await createComponent([user()], [branch()]);
+    service['updateUser'].mockReturnValue(throwError(() => new Error('network')));
+
+    component.selectBranchAssignmentUser('7');
+    component.saveBranchAssignment();
+
+    expect(component.error).toBe('No se pudo completar la operación. Verifica los datos.');
+  });
+
+  it('saves a new branch and keeps the returned branch in the tenant branch list', async () => {
+    const created = branch({ id: 21, name: 'Sucursal Norte' });
+    await createComponent([], [branch()]);
+    service['createBranch'].mockReturnValue(of(created));
+
+    component.showBranchForm = true;
+    component.section = 'locations';
+    component.branchForm.setValue({ city_id: '3', name: 'Sucursal Norte', address: created.address, phone: created.phone });
+    component.createBranch();
+
+    expect(service['createBranch']).toHaveBeenCalledWith({ city_id: 3, name: 'Sucursal Norte', address: created.address, phone: created.phone });
+    expect(component.branches).toContain(created);
+    expect(component.error).toBe('');
+  });
+
+  it('shows Spanish error feedback when a new branch cannot be saved', async () => {
+    await createComponent([], []);
+    service['createBranch'].mockReturnValue(throwError(() => new Error('network')));
+
+    component.branchForm.setValue({ city_id: '3', name: 'Sucursal Norte', address: 'Av. Principal 123', phone: '70000001' });
+    component.createBranch();
+
+    expect(component.error).toBe('No se pudo completar la operación. Verifica los datos.');
+  });
+
+  it('shows the exact branch quota message when BRANCH_LIMIT_EXCEEDED is returned', async () => {
+    await createComponent([], []);
+    service['createBranch'].mockReturnValue(throwError(() => new HttpErrorResponse({
+      status: 409,
+      error: {
+        detail: {
+          code: 'BRANCH_LIMIT_EXCEEDED',
+          message: "Se ha alcanzado el límite de 2 sucursales activas permitido por el plan 'BASIC'.",
+        },
+      },
+    })));
+
+    component.branchForm.setValue({ city_id: '3', name: 'Sucursal Norte', address: 'Av. Principal 123', phone: '70000001' });
+    component.createBranch();
+
+    expect(component.error).toBe("Se ha alcanzado el límite de 2 sucursales activas permitido por el plan 'BASIC'.");
   });
 });

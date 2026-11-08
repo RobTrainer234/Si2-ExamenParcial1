@@ -29,6 +29,7 @@ class CartRepository {
     return await _api.post('/purchases/digital', body: body)
         as Map<String, dynamic>;
   }
+
   Future<Map<String, dynamic>> pay(int saleId, String key) async =>
       await _api.post(
             '/payments/electronic',
@@ -44,6 +45,35 @@ class CartRepository {
             body: {'sale_id': saleId, 'idempotency_key': key, 'method': 'CARD'},
           )
           as Map<String, dynamic>;
+
+  Future<Map<String, dynamic>> generateQrPayment(
+    int saleId, {
+    String? clientBaseUrl,
+  }) async {
+    return await _api.post(
+          '/payments/qr/generate',
+          body: {
+            'sale_id': saleId,
+            if (clientBaseUrl != null && clientBaseUrl.isNotEmpty)
+              'client_base_url': clientBaseUrl,
+          },
+        )
+        as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> confirmQrTransfer(
+    String transactionReference,
+    String amount,
+  ) async {
+    return await _api.post(
+          '/payments/qr/confirm-transfer',
+          body: {
+            'transaction_reference': transactionReference,
+            'amount': amount,
+          },
+        )
+        as Map<String, dynamic>;
+  }
 
   Future<Map<String, dynamic>> confirmStripePayment(
     String paymentIntentId,

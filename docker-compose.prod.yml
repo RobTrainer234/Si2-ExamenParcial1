@@ -57,6 +57,25 @@ services:
       timeout: 5s
       retries: 10
 
+  email-worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL in .env}
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env}
+      BREVO_API_KEY: ${BREVO_API_KEY:-}
+      BREVO_SENDER_EMAIL: ${BREVO_SENDER_EMAIL:-}
+      BREVO_SENDER_NAME: ${BREVO_SENDER_NAME:-}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    command: python -c "from app.core.email_outbox_worker import run_worker; run_worker()"
+
   web:
     build:
       context: ./web

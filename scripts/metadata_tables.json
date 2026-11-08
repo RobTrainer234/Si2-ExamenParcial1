@@ -1,0 +1,3605 @@
+{
+  "tenants": {
+    "columns": [
+      {
+        "name": "id",
+        "type": "INTEGER",
+        "key": "PK",
+        "fks": [],
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "name",
+        "type": "VARCHAR(150)",
+        "key": "-",
+        "fks": [],
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "status",
+        "type": "VARCHAR(20)",
+        "key": "-",
+        "fks": [],
+        "nullable": false,
+        "default": "ACTIVE"
+      },
+      {
+        "name": "created_at",
+        "type": "TIMESTAMP WITH TIME ZONE",
+        "key": "-",
+        "fks": [],
+        "nullable": false,
+        "default": "now()"
+      },
+      {
+        "name": "updated_at",
+        "type": "TIMESTAMP WITH TIME ZONE",
+        "key": "-",
+        "fks": [],
+        "nullable": false,
+        "default": "now()"
+      }
+    ],
+    "unique_constraints": [],
+    "check_constraints": [],
+    "indexes": []
+  },
+  "subscription_plans": {
+    "columns": [
+      {
+        "name": "id",
+        "type": "INTEGER",
+        "key": "PK",
+        "fks": [],
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "code",
+        "type": "VARCHAR(32)",
+        "key": "-",
+        "fks": [],
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "name",
+        "type": "VARCHAR(100)",
+        "key": "-",
+        "fks": [],
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "price_monthly",
+        "type": "NUMERIC(12, 2)",
+        "key": "-",
+        "fks": [],
+        "nullable": false,
+        "default": "0.00"
+      },
+      {
+        "name": "price_annual",
+        "type": "NUMERIC(12, 2)",
+        "key": "-",
+        "fks": [],
+        "nullable": false,
+        "default": "0.00"
+      },
+      {
+        "name": "currency",
+        "type": "VARCHAR(10)",
+        "key": "-",
+        "fks": [],
+        "nullable": false,
+        "default": "BOB"
+      },
+      {
+        "name": "max_active_branches",
+        "type": "INTEGER",
+        "key": "-",
+        "fks": [],
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "generative_reports_enabled",
+        "type": "BOOLEAN",
+        "key": "-",
+        "fks": [],
+        "nullable": false,
+        "default": "0"
+      },
+      {
+        "name": "is_active",
+        "type": "BOOLEAN",
+        "key": "-",
+        "fks": [],
+        "nullable": false,
+        "default": "1"
+      }
+    ],
+    "unique_constraints": [
+      {
+        "name": "uq_subscription_plans_code",
+        "columns": [
+          "code"
+        ]
+      }
+    ],
+    "check_constraints": [
+      {
+        "name": "ck_subscription_plans_price_annual_non_negative",
+        "sql": "price_annual >= 0"
+      },
+      {
+        "name": "ck_subscription_plans_branch_limit_positive",
+        "sql": "max_active_branches > 0"
+      },
+      {
+        "name": "ck_subscription_plans_price_monthly_non_negative",
+        "sql": "price_monthly >= 0"
+      }
+    ],
+    "indexes": []
+  },
+  "subscriptions": {
+    "columns": [
+      {
+        "name": "id",
+        "type": "INTEGER",
+        "key": "PK",
+        "fks": [],
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "tenant_id",
+        "type": "INTEGER",
+        "key": "FK",
+        "fks": [
+          "tenants(id) ON DELETE CASCADE"
+        ],
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "plan_id",
+        "type": "INTEGER",
+        "key": "FK",
+        "fks": [
+          "subscription_plans(id) ON DELETE RESTRICT"
+        ],
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "status",
+        "type": "VARCHAR(20)",
+        "key": "-",
+        "fks": [],
+        "nullable": false,
+        "default": "ACTIVE"
+      },
+      {
+        "name": "valid_from",
+        "type": "TIMESTAMP WITH TIME ZONE",
+        "key": "-",
+        "fks": [],
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "valid_until",
+        "type": "TIMESTAMP WITH TIME ZONE",
+        "key": "-",
+        "fks": [],
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "paused_at",
+        "type": "TIMESTAMP WITH TIME ZONE",
+        "key": "-",
+        "fks": [],
+        "nullable": true,
+        "default": null
+      }
+    ],
+    "unique_constraints": [],
+    "check_constraints": [
+      {
+        "name": "ck_subscriptions_valid_interval",
+        "sql": "valid_until IS NULL OR valid_until > valid_from"
+      },
+      {
+        "name": "ck_subscriptions_status_valid",
+        "sql": "status IN ('ACTIVE', 'CANCELLED', 'EXPIRED', 'SUSPENDED', 'PAUSED')"
+      }
+    ],
+    "indexes": [
+      {
+        "name": "ix_subscriptions_plan_id",
+        "columns": [
+          "plan_id"
+        ],
+        "unique": false
+      },
+      {
+        "name": "ix_subscriptions_tenant_id",
+        "columns": [
+          "tenant_id"
+        ],
+        "unique": false
+      }
+    ]
+  },
+  "roles": {
+    "columns": [
+      {
+        "name": "id",
+        "type": "INTEGER",
+        "key": "PK",
+        "fks": [],
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "code",
+        "type": "VARCHAR(32)",
+        "key": "-",
+        "fks": [],
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "name",
+        "type": "VARCHAR(80)",
+        "key": "-",
+        "fks": [],
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "is_active",
+        "type": "BOOLEAN",
+        "key": "-",
+        "fks": [],
+        "nullable": false,
+        "default": "True"
+      }
+    ],
+    "unique_constraints": [
+      {
+        "name": null,
+        "columns": [
+          "code"
+        ]
+      }
+    ],
+    "check_constraints": [],
+    "indexes": []
+  },
+  "permisos": {
+    "columns": [
+      {
+        "name": "id",
+        "type": "INTEGER",
+        "key": "PK",
+        "fks": [],
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "code",
+        "type": "VARCHAR(80)",
+        "key": "-",
+        "fks": [],
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "name",
+        "type": "VARCHAR(120)",
+        "key": "-",
+        "fks": [],
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "is_active",
+        "type": "BOOLEAN",
+        "key": "-",
+        "fks": [],
+        "nullable": false,
+        "default": "True"
+      }
+    ],
+    "unique_constraints": [
+      {
+        "name": null,
+        "columns": [
+          "code"
+        ]
+      }
+    ],
+    "check_constraints": [],
+    "indexes": []
+  },
+  "rol_permisos": {
+    "columns": [
+      {
+        "name": "role_id",
+        "type": "INTEGER",
+        "key": "PK / FK",
+        "fks": [
+          "roles(id) ON DELETE CASCADE"
+        ],
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "permission_id",
+        "type": "INTEGER",
+        "key": "PK / FK",
+        "fks": [
+          "permisos(id) ON DELETE CASCADE"
+        ],
+        "nullable": false,
+        "default": null
+      }
+    ],
+    "unique_constraints": [],
+    "check_constraints": [],
+    "indexes": []
+  },
+  "usuarios": {
+    "columns": [
+      {
+        "name": "id",
+        "type": "INTEGER",
+        "key": "PK",
+        "fks": [],
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "tenant_id",
+        "type": "INTEGER",
+        "key": "FK",
+        "fks": [
+          "tenants(id) ON DELETE CASCADE"
+        ],
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "role_id",
+        "type": "INTEGER",
+        "key": "FK",
+        "fks": [
+          "roles(id) ON DELETE RESTRICT"
+        ],
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "supplier_id",
+        "type": "INTEGER",
+        "key": "FK",
+        "fks": [
+          "proveedores(id) ON DELETE SET NULL"
+        ],
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "first_name",
+        "type": "VARCHAR(100)",
+        "key": "-",
+        "fks": [],
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "last_name",
+        "type": "VARCHAR(100)",
+        "key": "-",
+        "fks": [],
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "email",
+        "type": "VARCHAR(255)",
+        "key": "-",
+        "fks": [],
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "phone",
+        "type": "VARCHAR(30)",
+        "key": "-",
+        "fks": [],
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "password_hash",
+        "type": "VARCHAR(255)",
+        "key": "-",
+        "fks": [],
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "is_active",
+        "type": "BOOLEAN",
+        "key": "-",
+        "fks": [],
+        "nullable": false,
+        "default": "True"
+      },
+      {
+        "name": "created_at",
+        "type": "TIMESTAMP WITH TIME ZONE",
+        "key": "-",
+        "fks": [],
+        "nullable": false,
+        "default": "now()"
+      },
+      {
+        "name": "updated_at",
+        "type": "TIMESTAMP WITH TIME ZONE",
+        "key": "-",
+        "fks": [],
+        "nullable": false,
+        "default": "now()"
+      }
+    ],
+    "unique_constraints": [
+      {
+        "name": "uq_users_tenant_email",
+        "columns": [
+          "tenant_id",
+          "email"
+        ]
+      }
+    ],
+    "check_constraints": [],
+    "indexes": [
+      {
+        "name": "ix_usuarios_role_id",
+        "columns": [
+          "role_id"
+        ],
+        "unique": false
+      },
+      {
+        "name": "ix_usuarios_tenant_id",
+        "columns": [
+          "tenant_id"
+        ],
+        "unique": false
+      },
+      {
+        "name": "ix_usuarios_supplier_id",
+        "columns": [
+          "supplier_id"
+        ],
+        "unique": true
+      },
+      {
+        "name": "ix_usuarios_email",
+        "columns": [
+          "email"
+        ],
+        "unique": false
+      }
+    ]
+  },
+  "usuario_sucursales": {
+    "columns": [
+      {
+        "name": "user_id",
+        "type": "INTEGER",
+        "key": "PK / FK",
+        "fks": [
+          "usuarios(id) ON DELETE CASCADE"
+        ],
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "branch_id",
+        "type": "INTEGER",
+        "key": "PK / FK",
+        "fks": [
+          "sucursales(id) ON DELETE CASCADE"
+        ],
+        "nullable": false,
+        "default": null
+      }
+    ],
+    "unique_constraints": [],
+    "check_constraints": [],
+    "indexes": []
+  },
+  "sesiones_actualizacion": {
+    "columns": [
+      {
+        "name": "id",
+        "type": "INTEGER",
+        "key": "PK",
+        "fks": [],
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "user_id",
+        "type": "INTEGER",
+        "key": "FK",
+        "fks": [
+          "usuarios(id) ON DELETE CASCADE"
+        ],
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "session_id",
+        "type": "VARCHAR(64)",
+        "key": "-",
+        "fks": [],
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "token_hash",
+        "type": "VARCHAR(64)",
+        "key": "-",
+        "fks": [],
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "expires_at",
+        "type": "TIMESTAMP WITH TIME ZONE",
+        "key": "-",
+        "fks": [],
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "revoked_at",
+        "type": "TIMESTAMP WITH TIME ZONE",
+        "key": "-",
+        "fks": [],
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "created_at",
+        "type": "TIMESTAMP WITH TIME ZONE",
+        "key": "-",
+        "fks": [],
+        "nullable": false,
+        "default": "now()"
+      }
+    ],
+    "unique_constraints": [
+      {
+        "name": null,
+        "columns": [
+          "token_hash"
+        ]
+      }
+    ],
+    "check_constraints": [],
+    "indexes": [
+      {
+        "name": "ix_sesiones_actualizacion_user_id",
+        "columns": [
+          "user_id"
+        ],
+        "unique": false
+      },
+      {
+        "name": "ix_sesiones_actualizacion_session_id",
+        "columns": [
+          "session_id"
+        ],
+        "unique": true
+      }
+    ]
+  },
+  "ciudades": {
+    "columns": [
+      {
+        "name": "id",
+        "type": "INTEGER",
+        "key": "PK",
+        "fks": [],
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "name",
+        "type": "VARCHAR(100)",
+        "key": "-",
+        "fks": [],
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "is_active",
+        "type": "BOOLEAN",
+        "key": "-",
+        "fks": [],
+        "nullable": false,
+        "default": "True"
+      }
+    ],
+    "unique_constraints": [
+      {
+        "name": null,
+        "columns": [
+          "name"
+        ]
+      }
+    ],
+    "check_constraints": [],
+    "indexes": []
+  },
+  "sucursales": {
+    "columns": [
+      {
+        "name": "id",
+        "type": "INTEGER",
+        "key": "PK",
+        "fks": [],
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "tenant_id",
+        "type": "INTEGER",
+        "key": "FK",
+        "fks": [
+          "tenants(id) ON DELETE CASCADE"
+        ],
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "city_id",
+        "type": "INTEGER",
+        "key": "FK",
+        "fks": [
+          "ciudades(id) ON DELETE RESTRICT"
+        ],
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "name",
+        "type": "VARCHAR(120)",
+        "key": "-",
+        "fks": [],
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "address",
+        "type": "VARCHAR(255)",
+        "key": "-",
+        "fks": [],
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "phone",
+        "type": "VARCHAR(30)",
+        "key": "-",
+        "fks": [],
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "latitude",
+        "type": "NUMERIC(9, 6)",
+        "key": "-",
+        "fks": [],
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "longitude",
+        "type": "NUMERIC(9, 6)",
+        "key": "-",
+        "fks": [],
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "is_active",
+        "type": "BOOLEAN",
+        "key": "-",
+        "fks": [],
+        "nullable": false,
+        "default": "True"
+      }
+    ],
+    "unique_constraints": [
+      {
+        "name": "uq_branches_tenant_city_name",
+        "columns": [
+          "tenant_id",
+          "city_id",
+          "name"
+        ]
+      }
+    ],
+    "check_constraints": [],
+    "indexes": [
+      {
+        "name": "ix_sucursales_city_id",
+        "columns": [
+          "city_id"
+        ],
+        "unique": false
+      },
+      {
+        "name": "ix_sucursales_tenant_id",
+        "columns": [
+          "tenant_id"
+        ],
+        "unique": false
+      }
+    ]
+  },
+  "categorias": {
+    "columns": [
+      {
+        "name": "id",
+        "type": "INTEGER",
+        "key": "PK",
+        "fks": [],
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "tenant_id",
+        "type": "INTEGER",
+        "key": "FK",
+        "fks": [
+          "tenants(id) ON DELETE CASCADE"
+        ],
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "name",
+        "type": "VARCHAR(100)",
+        "key": "-",
+        "fks": [],
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "description",
+        "type": "VARCHAR(255)",
+        "key": "-",
+        "fks": [],
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "is_active",
+        "type": "BOOLEAN",
+        "key": "-",
+        "fks": [],
+        "nullable": false,
+        "default": "True"
+      }
+    ],
+    "unique_constraints": [
+      {
+        "name": "uq_categories_tenant_name",
+        "columns": [
+          "tenant_id",
+          "name"
+        ]
+      }
+    ],
+    "check_constraints": [],
+    "indexes": [
+      {
+        "name": "ix_categorias_tenant_id",
+        "columns": [
+          "tenant_id"
+        ],
+        "unique": false
+      }
+    ]
+  },
+  "tallas": {
+    "columns": [
+      {
+        "name": "id",
+        "type": "INTEGER",
+        "key": "PK",
+        "fks": [],
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "name",
+        "type": "VARCHAR(20)",
+        "key": "-",
+        "fks": [],
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "size_type",
+        "type": "VARCHAR(16)",
+        "key": "-",
+        "fks": [],
+        "nullable": false,
+        "default": "ALPHA"
+      },
+      {
+        "name": "sort_order",
+        "type": "INTEGER",
+        "key": "-",
+        "fks": [],
+        "nullable": false,
+        "default": "0"
+      },
+      {
+        "name": "is_active",
+        "type": "BOOLEAN",
+        "key": "-",
+        "fks": [],
+        "nullable": false,
+        "default": "True"
+      }
+    ],
+    "unique_constraints": [
+      {
+        "name": null,
+        "columns": [
+          "name"
+        ]
+      }
+    ],
+    "check_constraints": [],
+    "indexes": []
+  },
+  "colores": {
+    "columns": [
+      {
+        "name": "id",
+        "type": "INTEGER",
+        "key": "PK",
+        "fks": [],
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "name",
+        "type": "VARCHAR(50)",
+        "key": "-",
+        "fks": [],
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "hex_code",
+        "type": "VARCHAR(7)",
+        "key": "-",
+        "fks": [],
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "is_active",
+        "type": "BOOLEAN",
+        "key": "-",
+        "fks": [],
+        "nullable": false,
+        "default": "True"
+      }
+    ],
+    "unique_constraints": [
+      {
+        "name": null,
+        "columns": [
+          "name"
+        ]
+      }
+    ],
+    "check_constraints": [],
+    "indexes": []
+  },
+  "proveedores": {
+    "columns": [
+      {
+        "name": "id",
+        "type": "INTEGER",
+        "key": "PK",
+        "fks": [],
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "tenant_id",
+        "type": "INTEGER",
+        "key": "FK",
+        "fks": [
+          "tenants(id) ON DELETE CASCADE"
+        ],
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "trade_name",
+        "type": "VARCHAR(150)",
+        "key": "-",
+        "fks": [],
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "legal_name",
+        "type": "VARCHAR(200)",
+        "key": "-",
+        "fks": [],
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "tax_id",
+        "type": "VARCHAR(50)",
+        "key": "-",
+        "fks": [],
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "email",
+        "type": "VARCHAR(255)",
+        "key": "-",
+        "fks": [],
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "phone",
+        "type": "VARCHAR(30)",
+        "key": "-",
+        "fks": [],
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "address",
+        "type": "VARCHAR(255)",
+        "key": "-",
+        "fks": [],
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "is_active",
+        "type": "BOOLEAN",
+        "key": "-",
+        "fks": [],
+        "nullable": false,
+        "default": "True"
+      }
+    ],
+    "unique_constraints": [
+      {
+        "name": "uq_suppliers_tenant_tax_id",
+        "columns": [
+          "tenant_id",
+          "tax_id"
+        ]
+      }
+    ],
+    "check_constraints": [],
+    "indexes": [
+      {
+        "name": "ix_proveedores_tenant_id",
+        "columns": [
+          "tenant_id"
+        ],
+        "unique": false
+      }
+    ]
+  },
+  "temporadas": {
+    "columns": [
+      {
+        "name": "id",
+        "type": "INTEGER",
+        "key": "PK",
+        "fks": [],
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "tenant_id",
+        "type": "INTEGER",
+        "key": "FK",
+        "fks": [
+          "tenants(id) ON DELETE CASCADE"
+        ],
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "name",
+        "type": "VARCHAR(100)",
+        "key": "-",
+        "fks": [],
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "starts_on",
+        "type": "DATE",
+        "key": "-",
+        "fks": [],
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "ends_on",
+        "type": "DATE",
+        "key": "-",
+        "fks": [],
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "is_active",
+        "type": "BOOLEAN",
+        "key": "-",
+        "fks": [],
+        "nullable": false,
+        "default": "True"
+      }
+    ],
+    "unique_constraints": [
+      {
+        "name": "uq_seasons_tenant_name",
+        "columns": [
+          "tenant_id",
+          "name"
+        ]
+      }
+    ],
+    "check_constraints": [],
+    "indexes": [
+      {
+        "name": "ix_temporadas_tenant_id",
+        "columns": [
+          "tenant_id"
+        ],
+        "unique": false
+      }
+    ]
+  },
+  "colecciones": {
+    "columns": [
+      {
+        "name": "id",
+        "type": "INTEGER",
+        "key": "PK",
+        "fks": [],
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "tenant_id",
+        "type": "INTEGER",
+        "key": "FK",
+        "fks": [
+          "tenants(id) ON DELETE CASCADE"
+        ],
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "season_id",
+        "type": "INTEGER",
+        "key": "FK",
+        "fks": [
+          "temporadas(id) ON DELETE RESTRICT"
+        ],
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "name",
+        "type": "VARCHAR(120)",
+        "key": "-",
+        "fks": [],
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "description",
+        "type": "TEXT",
+        "key": "-",
+        "fks": [],
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "is_active",
+        "type": "BOOLEAN",
+        "key": "-",
+        "fks": [],
+        "nullable": false,
+        "default": "True"
+      }
+    ],
+    "unique_constraints": [
+      {
+        "name": "uq_collections_season_name",
+        "columns": [
+          "season_id",
+          "name"
+        ]
+      }
+    ],
+    "check_constraints": [],
+    "indexes": [
+      {
+        "name": "ix_colecciones_season_id",
+        "columns": [
+          "season_id"
+        ],
+        "unique": false
+      },
+      {
+        "name": "ix_colecciones_tenant_id",
+        "columns": [
+          "tenant_id"
+        ],
+        "unique": false
+      }
+    ]
+  },
+  "productos": {
+    "columns": [
+      {
+        "name": "id",
+        "type": "INTEGER",
+        "key": "PK",
+        "fks": [],
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "tenant_id",
+        "type": "INTEGER",
+        "key": "FK",
+        "fks": [
+          "tenants(id) ON DELETE CASCADE"
+        ],
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "category_id",
+        "type": "INTEGER",
+        "key": "FK",
+        "fks": [
+          "categorias(id) ON DELETE RESTRICT"
+        ],
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "season_id",
+        "type": "INTEGER",
+        "key": "FK",
+        "fks": [
+          "temporadas(id) ON DELETE RESTRICT"
+        ],
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "collection_id",
+        "type": "INTEGER",
+        "key": "FK",
+        "fks": [
+          "colecciones(id) ON DELETE RESTRICT"
+        ],
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "audience",
+        "type": "VARCHAR(16)",
+        "key": "-",
+        "fks": [],
+        "nullable": false,
+        "default": "UNISEX"
+      },
+      {
+        "name": "size_system",
+        "type": "VARCHAR(16)",
+        "key": "-",
+        "fks": [],
+        "nullable": false,
+        "default": "ALPHA"
+      },
+      {
+        "name": "code",
+        "type": "VARCHAR(50)",
+        "key": "-",
+        "fks": [],
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "name",
+        "type": "VARCHAR(180)",
+        "key": "-",
+        "fks": [],
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "slug",
+        "type": "VARCHAR(200)",
+        "key": "-",
+        "fks": [],
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "description",
+        "type": "TEXT",
+        "key": "-",
+        "fks": [],
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "price",
+        "type": "NUMERIC(12, 2)",
+        "key": "-",
+        "fks": [],
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "is_active",
+        "type": "BOOLEAN",
+        "key": "-",
+        "fks": [],
+        "nullable": false,
+        "default": "True"
+      },
+      {
+        "name": "created_at",
+        "type": "TIMESTAMP WITH TIME ZONE",
+        "key": "-",
+        "fks": [],
+        "nullable": false,
+        "default": "now()"
+      },
+      {
+        "name": "updated_at",
+        "type": "TIMESTAMP WITH TIME ZONE",
+        "key": "-",
+        "fks": [],
+        "nullable": false,
+        "default": "now()"
+      }
+    ],
+    "unique_constraints": [
+      {
+        "name": "uq_products_tenant_slug",
+        "columns": [
+          "tenant_id",
+          "slug"
+        ]
+      },
+      {
+        "name": "uq_products_tenant_code",
+        "columns": [
+          "tenant_id",
+          "code"
+        ]
+      }
+    ],
+    "check_constraints": [],
+    "indexes": [
+      {
+        "name": "ix_productos_audience",
+        "columns": [
+          "audience"
+        ],
+        "unique": false
+      },
+      {
+        "name": "ix_productos_collection_id",
+        "columns": [
+          "collection_id"
+        ],
+        "unique": false
+      },
+      {
+        "name": "ix_productos_category_id",
+        "columns": [
+          "category_id"
+        ],
+        "unique": false
+      },
+      {
+        "name": "ix_productos_name",
+        "columns": [
+          "name"
+        ],
+        "unique": false
+      },
+      {
+        "name": "ix_productos_season_id",
+        "columns": [
+          "season_id"
+        ],
+        "unique": false
+      },
+      {
+        "name": "ix_productos_size_system",
+        "columns": [
+          "size_system"
+        ],
+        "unique": false
+      },
+      {
+        "name": "ix_productos_tenant_id",
+        "columns": [
+          "tenant_id"
+        ],
+        "unique": false
+      },
+      {
+        "name": "ix_productos_tenant_name",
+        "columns": [
+          "tenant_id",
+          "name"
+        ],
+        "unique": false
+      }
+    ]
+  },
+  "producto_proveedores": {
+    "columns": [
+      {
+        "name": "product_id",
+        "type": "INTEGER",
+        "key": "PK / FK",
+        "fks": [
+          "productos(id) ON DELETE CASCADE"
+        ],
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "supplier_id",
+        "type": "INTEGER",
+        "key": "PK / FK",
+        "fks": [
+          "proveedores(id) ON DELETE RESTRICT"
+        ],
+        "nullable": false,
+        "default": null
+      }
+    ],
+    "unique_constraints": [],
+    "check_constraints": [],
+    "indexes": []
+  },
+  "ofertas_abastecimiento": {
+    "columns": [
+      {
+        "name": "id",
+        "type": "INTEGER",
+        "key": "PK",
+        "fks": [],
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "tenant_id",
+        "type": "INTEGER",
+        "key": "FK",
+        "fks": [
+          "tenants(id) ON DELETE CASCADE"
+        ],
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "supplier_id",
+        "type": "INTEGER",
+        "key": "FK",
+        "fks": [
+          "proveedores(id) ON DELETE CASCADE"
+        ],
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "product_variant_id",
+        "type": "INTEGER",
+        "key": "FK",
+        "fks": [
+          "variantes_producto(id) ON DELETE RESTRICT"
+        ],
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "season_id",
+        "type": "INTEGER",
+        "key": "FK",
+        "fks": [
+          "temporadas(id) ON DELETE RESTRICT"
+        ],
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "collection_id",
+        "type": "INTEGER",
+        "key": "FK",
+        "fks": [
+          "colecciones(id) ON DELETE RESTRICT"
+        ],
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "status",
+        "type": "VARCHAR(20)",
+        "key": "-",
+        "fks": [],
+        "nullable": false,
+        "default": "AVAILABLE"
+      },
+      {
+        "name": "available_quantity",
+        "type": "INTEGER",
+        "key": "-",
+        "fks": [],
+        "nullable": false,
+        "default": "0"
+      },
+      {
+        "name": "expected_date",
+        "type": "DATE",
+        "key": "-",
+        "fks": [],
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "notes",
+        "type": "TEXT",
+        "key": "-",
+        "fks": [],
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "is_active",
+        "type": "BOOLEAN",
+        "key": "-",
+        "fks": [],
+        "nullable": false,
+        "default": "True"
+      },
+      {
+        "name": "created_at",
+        "type": "TIMESTAMP WITH TIME ZONE",
+        "key": "-",
+        "fks": [],
+        "nullable": false,
+        "default": "now()"
+      },
+      {
+        "name": "updated_at",
+        "type": "TIMESTAMP WITH TIME ZONE",
+        "key": "-",
+        "fks": [],
+        "nullable": false,
+        "default": "now()"
+      }
+    ],
+    "unique_constraints": [],
+    "check_constraints": [
+      {
+        "name": "ck_supply_offer_status",
+        "sql": "status IN ('AVAILABLE', 'LIMITED', 'OUT_OF_STOCK', 'UPCOMING')"
+      },
+      {
+        "name": "ck_supply_offer_quantity_nonnegative",
+        "sql": "available_quantity >= 0"
+      }
+    ],
+    "indexes": [
+      {
+        "name": "ix_supply_offer_supplier",
+        "columns": [
+          "supplier_id"
+        ],
+        "unique": false
+      },
+      {
+        "name": "ix_supply_offer_variant",
+        "columns": [
+          "product_variant_id"
+        ],
+        "unique": false
+      },
+      {
+        "name": "ix_ofertas_abastecimiento_tenant_id",
+        "columns": [
+          "tenant_id"
+        ],
+        "unique": false
+      }
+    ]
+  },
+  "variantes_producto": {
+    "columns": [
+      {
+        "name": "id",
+        "type": "INTEGER",
+        "key": "PK",
+        "fks": [],
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "tenant_id",
+        "type": "INTEGER",
+        "key": "FK",
+        "fks": [
+          "tenants(id) ON DELETE CASCADE"
+        ],
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "product_id",
+        "type": "INTEGER",
+        "key": "FK",
+        "fks": [
+          "productos(id) ON DELETE CASCADE"
+        ],
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "size_id",
+        "type": "INTEGER",
+        "key": "FK",
+        "fks": [
+          "tallas(id) ON DELETE RESTRICT"
+        ],
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "color_id",
+        "type": "INTEGER",
+        "key": "FK",
+        "fks": [
+          "colores(id) ON DELETE RESTRICT"
+        ],
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "sku",
+        "type": "VARCHAR(80)",
+        "key": "-",
+        "fks": [],
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "is_active",
+        "type": "BOOLEAN",
+        "key": "-",
+        "fks": [],
+        "nullable": false,
+        "default": "True"
+      }
+    ],
+    "unique_constraints": [
+      {
+        "name": "uq_product_variants_tenant_sku",
+        "columns": [
+          "tenant_id",
+          "sku"
+        ]
+      },
+      {
+        "name": "uq_product_variant_attributes",
+        "columns": [
+          "product_id",
+          "size_id",
+          "color_id"
+        ]
+      }
+    ],
+    "check_constraints": [],
+    "indexes": [
+      {
+        "name": "ix_variantes_producto_product_id",
+        "columns": [
+          "product_id"
+        ],
+        "unique": false
+      },
+      {
+        "name": "ix_variantes_producto_sku",
+        "columns": [
+          "sku"
+        ],
+        "unique": false
+      },
+      {
+        "name": "ix_variantes_producto_tenant_id",
+        "columns": [
+          "tenant_id"
+        ],
+        "unique": false
+      }
+    ]
+  },
+  "imagenes_producto": {
+    "columns": [
+      {
+        "name": "id",
+        "type": "INTEGER",
+        "key": "PK",
+        "fks": [],
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "product_id",
+        "type": "INTEGER",
+        "key": "FK",
+        "fks": [
+          "productos(id) ON DELETE CASCADE"
+        ],
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "image_url",
+        "type": "VARCHAR(500)",
+        "key": "-",
+        "fks": [],
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "is_primary",
+        "type": "BOOLEAN",
+        "key": "-",
+        "fks": [],
+        "nullable": false,
+        "default": "False"
+      },
+      {
+        "name": "sort_order",
+        "type": "INTEGER",
+        "key": "-",
+        "fks": [],
+        "nullable": false,
+        "default": "0"
+      }
+    ],
+    "unique_constraints": [
+      {
+        "name": "uq_product_image_order",
+        "columns": [
+          "product_id",
+          "sort_order"
+        ]
+      }
+    ],
+    "check_constraints": [],
+    "indexes": [
+      {
+        "name": "ix_imagenes_producto_product_id",
+        "columns": [
+          "product_id"
+        ],
+        "unique": false
+      }
+    ]
+  },
+  "inventario": {
+    "columns": [
+      {
+        "name": "id",
+        "type": "INTEGER",
+        "key": "PK",
+        "fks": [],
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "tenant_id",
+        "type": "INTEGER",
+        "key": "FK",
+        "fks": [
+          "tenants(id) ON DELETE CASCADE"
+        ],
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "branch_id",
+        "type": "INTEGER",
+        "key": "FK",
+        "fks": [
+          "sucursales(id) ON DELETE RESTRICT"
+        ],
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "product_variant_id",
+        "type": "INTEGER",
+        "key": "FK",
+        "fks": [
+          "variantes_producto(id) ON DELETE RESTRICT"
+        ],
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "stock_quantity",
+        "type": "INTEGER",
+        "key": "-",
+        "fks": [],
+        "nullable": false,
+        "default": "0"
+      },
+      {
+        "name": "reserved_quantity",
+        "type": "INTEGER",
+        "key": "-",
+        "fks": [],
+        "nullable": false,
+        "default": "0"
+      }
+    ],
+    "unique_constraints": [
+      {
+        "name": "uq_inventory_branch_variant",
+        "columns": [
+          "branch_id",
+          "product_variant_id"
+        ]
+      }
+    ],
+    "check_constraints": [
+      {
+        "name": "ck_inventory_reserved_valid",
+        "sql": "reserved_quantity >= 0 AND reserved_quantity <= stock_quantity"
+      },
+      {
+        "name": "ck_inventory_stock_nonnegative",
+        "sql": "stock_quantity >= 0"
+      }
+    ],
+    "indexes": [
+      {
+        "name": "ix_inventory_tenant_branch",
+        "columns": [
+          "tenant_id",
+          "branch_id"
+        ],
+        "unique": false
+      },
+      {
+        "name": "ix_inventario_tenant_id",
+        "columns": [
+          "tenant_id"
+        ],
+        "unique": false
+      },
+      {
+        "name": "ix_inventario_product_variant_id",
+        "columns": [
+          "product_variant_id"
+        ],
+        "unique": false
+      },
+      {
+        "name": "ix_inventario_branch_id",
+        "columns": [
+          "branch_id"
+        ],
+        "unique": false
+      }
+    ]
+  },
+  "reservas": {
+    "columns": [
+      {
+        "name": "id",
+        "type": "INTEGER",
+        "key": "PK",
+        "fks": [],
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "tenant_id",
+        "type": "INTEGER",
+        "key": "FK",
+        "fks": [
+          "tenants(id) ON DELETE CASCADE"
+        ],
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "customer_id",
+        "type": "INTEGER",
+        "key": "FK",
+        "fks": [
+          "usuarios(id) ON DELETE RESTRICT"
+        ],
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "branch_id",
+        "type": "INTEGER",
+        "key": "FK",
+        "fks": [
+          "sucursales(id) ON DELETE RESTRICT"
+        ],
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "scheduled_for",
+        "type": "TIMESTAMP WITH TIME ZONE",
+        "key": "-",
+        "fks": [],
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "status",
+        "type": "VARCHAR(30)",
+        "key": "-",
+        "fks": [],
+        "nullable": false,
+        "default": "PENDING"
+      },
+      {
+        "name": "notes",
+        "type": "TEXT",
+        "key": "-",
+        "fks": [],
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "expires_at",
+        "type": "TIMESTAMP WITH TIME ZONE",
+        "key": "-",
+        "fks": [],
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "created_at",
+        "type": "TIMESTAMP WITH TIME ZONE",
+        "key": "-",
+        "fks": [],
+        "nullable": false,
+        "default": "now()"
+      },
+      {
+        "name": "updated_at",
+        "type": "TIMESTAMP WITH TIME ZONE",
+        "key": "-",
+        "fks": [],
+        "nullable": false,
+        "default": "now()"
+      }
+    ],
+    "unique_constraints": [],
+    "check_constraints": [],
+    "indexes": [
+      {
+        "name": "ix_reservations_tenant_branch_status",
+        "columns": [
+          "tenant_id",
+          "branch_id",
+          "status"
+        ],
+        "unique": false
+      },
+      {
+        "name": "ix_reservas_tenant_id",
+        "columns": [
+          "tenant_id"
+        ],
+        "unique": false
+      },
+      {
+        "name": "ix_reservations_customer_status",
+        "columns": [
+          "customer_id",
+          "status"
+        ],
+        "unique": false
+      },
+      {
+        "name": "ix_reservas_customer_id",
+        "columns": [
+          "customer_id"
+        ],
+        "unique": false
+      },
+      {
+        "name": "ix_reservas_branch_id",
+        "columns": [
+          "branch_id"
+        ],
+        "unique": false
+      }
+    ]
+  },
+  "detalles_reserva": {
+    "columns": [
+      {
+        "name": "id",
+        "type": "INTEGER",
+        "key": "PK",
+        "fks": [],
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "reservation_id",
+        "type": "INTEGER",
+        "key": "FK",
+        "fks": [
+          "reservas(id) ON DELETE CASCADE"
+        ],
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "product_variant_id",
+        "type": "INTEGER",
+        "key": "FK",
+        "fks": [
+          "variantes_producto(id) ON DELETE RESTRICT"
+        ],
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "quantity",
+        "type": "INTEGER",
+        "key": "-",
+        "fks": [],
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "unit_price",
+        "type": "NUMERIC(12, 2)",
+        "key": "-",
+        "fks": [],
+        "nullable": false,
+        "default": null
+      }
+    ],
+    "unique_constraints": [
+      {
+        "name": "uq_reservation_variant",
+        "columns": [
+          "reservation_id",
+          "product_variant_id"
+        ]
+      }
+    ],
+    "check_constraints": [
+      {
+        "name": "ck_reservation_item_quantity_positive",
+        "sql": "quantity > 0"
+      }
+    ],
+    "indexes": [
+      {
+        "name": "ix_detalles_reserva_reservation_id",
+        "columns": [
+          "reservation_id"
+        ],
+        "unique": false
+      }
+    ]
+  },
+  "carritos": {
+    "columns": [
+      {
+        "name": "id",
+        "type": "INTEGER",
+        "key": "PK",
+        "fks": [],
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "tenant_id",
+        "type": "INTEGER",
+        "key": "FK",
+        "fks": [
+          "tenants(id) ON DELETE CASCADE"
+        ],
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "customer_id",
+        "type": "INTEGER",
+        "key": "FK",
+        "fks": [
+          "usuarios(id) ON DELETE CASCADE"
+        ],
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "status",
+        "type": "VARCHAR(20)",
+        "key": "-",
+        "fks": [],
+        "nullable": false,
+        "default": "ACTIVE"
+      },
+      {
+        "name": "created_at",
+        "type": "TIMESTAMP WITH TIME ZONE",
+        "key": "-",
+        "fks": [],
+        "nullable": false,
+        "default": "now()"
+      },
+      {
+        "name": "updated_at",
+        "type": "TIMESTAMP WITH TIME ZONE",
+        "key": "-",
+        "fks": [],
+        "nullable": false,
+        "default": "now()"
+      }
+    ],
+    "unique_constraints": [
+      {
+        "name": "uq_carts_tenant_customer",
+        "columns": [
+          "tenant_id",
+          "customer_id"
+        ]
+      }
+    ],
+    "check_constraints": [],
+    "indexes": [
+      {
+        "name": "ix_carritos_customer_id",
+        "columns": [
+          "customer_id"
+        ],
+        "unique": false
+      },
+      {
+        "name": "ix_carritos_tenant_id",
+        "columns": [
+          "tenant_id"
+        ],
+        "unique": false
+      }
+    ]
+  },
+  "detalles_carrito": {
+    "columns": [
+      {
+        "name": "id",
+        "type": "INTEGER",
+        "key": "PK",
+        "fks": [],
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "cart_id",
+        "type": "INTEGER",
+        "key": "FK",
+        "fks": [
+          "carritos(id) ON DELETE CASCADE"
+        ],
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "product_variant_id",
+        "type": "INTEGER",
+        "key": "FK",
+        "fks": [
+          "variantes_producto(id) ON DELETE RESTRICT"
+        ],
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "quantity",
+        "type": "INTEGER",
+        "key": "-",
+        "fks": [],
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "unit_price",
+        "type": "NUMERIC(12, 2)",
+        "key": "-",
+        "fks": [],
+        "nullable": false,
+        "default": null
+      }
+    ],
+    "unique_constraints": [
+      {
+        "name": "uq_cart_variant",
+        "columns": [
+          "cart_id",
+          "product_variant_id"
+        ]
+      }
+    ],
+    "check_constraints": [
+      {
+        "name": "ck_cart_item_quantity_positive",
+        "sql": "quantity > 0"
+      }
+    ],
+    "indexes": [
+      {
+        "name": "ix_detalles_carrito_cart_id",
+        "columns": [
+          "cart_id"
+        ],
+        "unique": false
+      }
+    ]
+  },
+  "ventas": {
+    "columns": [
+      {
+        "name": "id",
+        "type": "INTEGER",
+        "key": "PK",
+        "fks": [],
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "tenant_id",
+        "type": "INTEGER",
+        "key": "FK",
+        "fks": [
+          "tenants(id) ON DELETE CASCADE"
+        ],
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "order_number",
+        "type": "VARCHAR(30)",
+        "key": "-",
+        "fks": [],
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "customer_id",
+        "type": "INTEGER",
+        "key": "FK",
+        "fks": [
+          "usuarios(id) ON DELETE RESTRICT"
+        ],
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "branch_id",
+        "type": "INTEGER",
+        "key": "FK",
+        "fks": [
+          "sucursales(id) ON DELETE RESTRICT"
+        ],
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "cashier_id",
+        "type": "INTEGER",
+        "key": "FK",
+        "fks": [
+          "usuarios(id) ON DELETE RESTRICT"
+        ],
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "reservation_id",
+        "type": "INTEGER",
+        "key": "FK",
+        "fks": [
+          "reservas(id) ON DELETE RESTRICT"
+        ],
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "channel",
+        "type": "VARCHAR(20)",
+        "key": "-",
+        "fks": [],
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "status",
+        "type": "VARCHAR(20)",
+        "key": "-",
+        "fks": [],
+        "nullable": false,
+        "default": "PENDING"
+      },
+      {
+        "name": "fulfillment_type",
+        "type": "VARCHAR(20)",
+        "key": "-",
+        "fks": [],
+        "nullable": false,
+        "default": "PICKUP"
+      },
+      {
+        "name": "subtotal",
+        "type": "NUMERIC(12, 2)",
+        "key": "-",
+        "fks": [],
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "discount",
+        "type": "NUMERIC(12, 2)",
+        "key": "-",
+        "fks": [],
+        "nullable": false,
+        "default": "0"
+      },
+      {
+        "name": "total",
+        "type": "NUMERIC(12, 2)",
+        "key": "-",
+        "fks": [],
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "created_at",
+        "type": "TIMESTAMP WITH TIME ZONE",
+        "key": "-",
+        "fks": [],
+        "nullable": false,
+        "default": "now()"
+      },
+      {
+        "name": "updated_at",
+        "type": "TIMESTAMP WITH TIME ZONE",
+        "key": "-",
+        "fks": [],
+        "nullable": false,
+        "default": "now()"
+      }
+    ],
+    "unique_constraints": [
+      {
+        "name": "uq_sales_tenant_order_number",
+        "columns": [
+          "tenant_id",
+          "order_number"
+        ]
+      }
+    ],
+    "check_constraints": [
+      {
+        "name": "ck_sales_fulfillment_type",
+        "sql": "fulfillment_type IN ('PICKUP', 'DELIVERY')"
+      }
+    ],
+    "indexes": [
+      {
+        "name": "ix_ventas_order_number",
+        "columns": [
+          "order_number"
+        ],
+        "unique": false
+      },
+      {
+        "name": "ix_sales_customer_created",
+        "columns": [
+          "customer_id",
+          "created_at"
+        ],
+        "unique": false
+      },
+      {
+        "name": "ix_sales_tenant_created",
+        "columns": [
+          "tenant_id",
+          "created_at"
+        ],
+        "unique": false
+      },
+      {
+        "name": "ix_ventas_tenant_id",
+        "columns": [
+          "tenant_id"
+        ],
+        "unique": false
+      },
+      {
+        "name": "ix_ventas_reservation_id",
+        "columns": [
+          "reservation_id"
+        ],
+        "unique": false
+      },
+      {
+        "name": "ix_ventas_cashier_id",
+        "columns": [
+          "cashier_id"
+        ],
+        "unique": false
+      },
+      {
+        "name": "ix_ventas_branch_id",
+        "columns": [
+          "branch_id"
+        ],
+        "unique": false
+      },
+      {
+        "name": "ix_ventas_customer_id",
+        "columns": [
+          "customer_id"
+        ],
+        "unique": false
+      }
+    ]
+  },
+  "envios_venta": {
+    "columns": [
+      {
+        "name": "id",
+        "type": "INTEGER",
+        "key": "PK",
+        "fks": [],
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "sale_id",
+        "type": "INTEGER",
+        "key": "FK",
+        "fks": [
+          "ventas(id) ON DELETE CASCADE"
+        ],
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "recipient_name",
+        "type": "VARCHAR(120)",
+        "key": "-",
+        "fks": [],
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "recipient_ci",
+        "type": "VARCHAR(30)",
+        "key": "-",
+        "fks": [],
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "recipient_phone",
+        "type": "VARCHAR(30)",
+        "key": "-",
+        "fks": [],
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "department_or_city",
+        "type": "VARCHAR(100)",
+        "key": "-",
+        "fks": [],
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "zone",
+        "type": "VARCHAR(120)",
+        "key": "-",
+        "fks": [],
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "street",
+        "type": "VARCHAR(150)",
+        "key": "-",
+        "fks": [],
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "house_number",
+        "type": "VARCHAR(50)",
+        "key": "-",
+        "fks": [],
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "reference",
+        "type": "VARCHAR(255)",
+        "key": "-",
+        "fks": [],
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "created_at",
+        "type": "TIMESTAMP WITH TIME ZONE",
+        "key": "-",
+        "fks": [],
+        "nullable": false,
+        "default": "now()"
+      },
+      {
+        "name": "updated_at",
+        "type": "TIMESTAMP WITH TIME ZONE",
+        "key": "-",
+        "fks": [],
+        "nullable": false,
+        "default": "now()"
+      }
+    ],
+    "unique_constraints": [],
+    "check_constraints": [],
+    "indexes": [
+      {
+        "name": "ix_envios_venta_sale_id",
+        "columns": [
+          "sale_id"
+        ],
+        "unique": true
+      }
+    ]
+  },
+  "detalles_venta": {
+    "columns": [
+      {
+        "name": "id",
+        "type": "INTEGER",
+        "key": "PK",
+        "fks": [],
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "sale_id",
+        "type": "INTEGER",
+        "key": "FK",
+        "fks": [
+          "ventas(id) ON DELETE CASCADE"
+        ],
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "product_variant_id",
+        "type": "INTEGER",
+        "key": "FK",
+        "fks": [
+          "variantes_producto(id) ON DELETE RESTRICT"
+        ],
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "quantity",
+        "type": "INTEGER",
+        "key": "-",
+        "fks": [],
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "unit_price",
+        "type": "NUMERIC(12, 2)",
+        "key": "-",
+        "fks": [],
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "discount",
+        "type": "NUMERIC(12, 2)",
+        "key": "-",
+        "fks": [],
+        "nullable": false,
+        "default": "0"
+      },
+      {
+        "name": "line_total",
+        "type": "NUMERIC(12, 2)",
+        "key": "-",
+        "fks": [],
+        "nullable": false,
+        "default": null
+      }
+    ],
+    "unique_constraints": [],
+    "check_constraints": [
+      {
+        "name": "ck_sale_item_quantity_positive",
+        "sql": "quantity > 0"
+      },
+      {
+        "name": "ck_sale_item_total_nonnegative",
+        "sql": "line_total >= 0"
+      }
+    ],
+    "indexes": [
+      {
+        "name": "ix_detalles_venta_sale_id",
+        "columns": [
+          "sale_id"
+        ],
+        "unique": false
+      }
+    ]
+  },
+  "pagos": {
+    "columns": [
+      {
+        "name": "id",
+        "type": "INTEGER",
+        "key": "PK",
+        "fks": [],
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "tenant_id",
+        "type": "INTEGER",
+        "key": "FK",
+        "fks": [
+          "tenants(id) ON DELETE CASCADE"
+        ],
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "idempotency_key",
+        "type": "VARCHAR(100)",
+        "key": "-",
+        "fks": [],
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "sale_id",
+        "type": "INTEGER",
+        "key": "FK",
+        "fks": [
+          "ventas(id) ON DELETE RESTRICT"
+        ],
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "method",
+        "type": "VARCHAR(30)",
+        "key": "-",
+        "fks": [],
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "provider",
+        "type": "VARCHAR(50)",
+        "key": "-",
+        "fks": [],
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "transaction_reference",
+        "type": "VARCHAR(150)",
+        "key": "-",
+        "fks": [],
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "status",
+        "type": "VARCHAR(20)",
+        "key": "-",
+        "fks": [],
+        "nullable": false,
+        "default": "PENDING"
+      },
+      {
+        "name": "amount",
+        "type": "NUMERIC(12, 2)",
+        "key": "-",
+        "fks": [],
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "received_amount",
+        "type": "NUMERIC(12, 2)",
+        "key": "-",
+        "fks": [],
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "change_amount",
+        "type": "NUMERIC(12, 2)",
+        "key": "-",
+        "fks": [],
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "metadata_json",
+        "type": "JSON",
+        "key": "-",
+        "fks": [],
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "paid_at",
+        "type": "TIMESTAMP WITH TIME ZONE",
+        "key": "-",
+        "fks": [],
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "created_at",
+        "type": "TIMESTAMP WITH TIME ZONE",
+        "key": "-",
+        "fks": [],
+        "nullable": false,
+        "default": "now()"
+      }
+    ],
+    "unique_constraints": [
+      {
+        "name": "uq_payments_tenant_provider_reference",
+        "columns": [
+          "tenant_id",
+          "provider",
+          "transaction_reference"
+        ]
+      },
+      {
+        "name": "uq_payments_tenant_idempotency_key",
+        "columns": [
+          "tenant_id",
+          "idempotency_key"
+        ]
+      }
+    ],
+    "check_constraints": [
+      {
+        "name": "ck_payment_amount_nonnegative",
+        "sql": "amount >= 0"
+      }
+    ],
+    "indexes": [
+      {
+        "name": "ix_pagos_sale_id",
+        "columns": [
+          "sale_id"
+        ],
+        "unique": false
+      },
+      {
+        "name": "ix_pagos_idempotency_key",
+        "columns": [
+          "idempotency_key"
+        ],
+        "unique": false
+      },
+      {
+        "name": "ix_pagos_tenant_id",
+        "columns": [
+          "tenant_id"
+        ],
+        "unique": false
+      }
+    ]
+  },
+  "movimientos_inventario": {
+    "columns": [
+      {
+        "name": "id",
+        "type": "INTEGER",
+        "key": "PK",
+        "fks": [],
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "tenant_id",
+        "type": "INTEGER",
+        "key": "FK",
+        "fks": [
+          "tenants(id) ON DELETE CASCADE"
+        ],
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "inventory_id",
+        "type": "INTEGER",
+        "key": "FK",
+        "fks": [
+          "inventario(id) ON DELETE RESTRICT"
+        ],
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "movement_type",
+        "type": "VARCHAR(30)",
+        "key": "-",
+        "fks": [],
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "quantity",
+        "type": "INTEGER",
+        "key": "-",
+        "fks": [],
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "stock_before",
+        "type": "INTEGER",
+        "key": "-",
+        "fks": [],
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "stock_after",
+        "type": "INTEGER",
+        "key": "-",
+        "fks": [],
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "reason",
+        "type": "VARCHAR(255)",
+        "key": "-",
+        "fks": [],
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "reference_type",
+        "type": "VARCHAR(50)",
+        "key": "-",
+        "fks": [],
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "reference_id",
+        "type": "INTEGER",
+        "key": "-",
+        "fks": [],
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "created_by",
+        "type": "INTEGER",
+        "key": "FK",
+        "fks": [
+          "usuarios(id) ON DELETE SET NULL"
+        ],
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "created_at",
+        "type": "TIMESTAMP WITH TIME ZONE",
+        "key": "-",
+        "fks": [],
+        "nullable": false,
+        "default": "now()"
+      }
+    ],
+    "unique_constraints": [],
+    "check_constraints": [
+      {
+        "name": "ck_inventory_movement_quantity_positive",
+        "sql": "quantity > 0"
+      },
+      {
+        "name": "ck_inventory_movement_stock_nonnegative",
+        "sql": "stock_before >= 0 AND stock_after >= 0"
+      },
+      {
+        "name": "ck_inventory_movement_type_valid",
+        "sql": "movement_type IN ('IN', 'OUT', 'RETURN', 'RESERVE', 'RELEASE', 'SALE')"
+      }
+    ],
+    "indexes": [
+      {
+        "name": "ix_movimientos_inventario_inventory_id",
+        "columns": [
+          "inventory_id"
+        ],
+        "unique": false
+      },
+      {
+        "name": "ix_movimientos_inventario_created_by",
+        "columns": [
+          "created_by"
+        ],
+        "unique": false
+      },
+      {
+        "name": "ix_movimientos_inventario_tenant_id",
+        "columns": [
+          "tenant_id"
+        ],
+        "unique": false
+      }
+    ]
+  },
+  "promociones": {
+    "columns": [
+      {
+        "name": "id",
+        "type": "INTEGER",
+        "key": "PK",
+        "fks": [],
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "tenant_id",
+        "type": "INTEGER",
+        "key": "FK",
+        "fks": [
+          "tenants(id) ON DELETE CASCADE"
+        ],
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "name",
+        "type": "VARCHAR(150)",
+        "key": "-",
+        "fks": [],
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "description",
+        "type": "TEXT",
+        "key": "-",
+        "fks": [],
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "discount_type",
+        "type": "VARCHAR(20)",
+        "key": "-",
+        "fks": [],
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "discount_value",
+        "type": "NUMERIC(12, 2)",
+        "key": "-",
+        "fks": [],
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "starts_at",
+        "type": "TIMESTAMP WITH TIME ZONE",
+        "key": "-",
+        "fks": [],
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "ends_at",
+        "type": "TIMESTAMP WITH TIME ZONE",
+        "key": "-",
+        "fks": [],
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "is_active",
+        "type": "BOOLEAN",
+        "key": "-",
+        "fks": [],
+        "nullable": false,
+        "default": "True"
+      }
+    ],
+    "unique_constraints": [],
+    "check_constraints": [
+      {
+        "name": "ck_promotion_dates_valid",
+        "sql": "ends_at > starts_at"
+      },
+      {
+        "name": "ck_promotion_discount_positive",
+        "sql": "discount_value > 0"
+      }
+    ],
+    "indexes": [
+      {
+        "name": "ix_promociones_tenant_id",
+        "columns": [
+          "tenant_id"
+        ],
+        "unique": false
+      }
+    ]
+  },
+  "productos_promocion": {
+    "columns": [
+      {
+        "name": "promotion_id",
+        "type": "INTEGER",
+        "key": "PK / FK",
+        "fks": [
+          "promociones(id) ON DELETE CASCADE"
+        ],
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "product_id",
+        "type": "INTEGER",
+        "key": "PK / FK",
+        "fks": [
+          "productos(id) ON DELETE CASCADE"
+        ],
+        "nullable": false,
+        "default": null
+      }
+    ],
+    "unique_constraints": [],
+    "check_constraints": [],
+    "indexes": []
+  },
+  "sesiones_vestidor_virtual": {
+    "columns": [
+      {
+        "name": "id",
+        "type": "INTEGER",
+        "key": "PK",
+        "fks": [],
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "tenant_id",
+        "type": "INTEGER",
+        "key": "FK",
+        "fks": [
+          "tenants(id) ON DELETE CASCADE"
+        ],
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "customer_id",
+        "type": "INTEGER",
+        "key": "FK",
+        "fks": [
+          "usuarios(id) ON DELETE SET NULL"
+        ],
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "product_id",
+        "type": "INTEGER",
+        "key": "FK",
+        "fks": [
+          "productos(id) ON DELETE RESTRICT"
+        ],
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "status",
+        "type": "VARCHAR(20)",
+        "key": "-",
+        "fks": [],
+        "nullable": false,
+        "default": "STARTED"
+      },
+      {
+        "name": "device_info",
+        "type": "VARCHAR(255)",
+        "key": "-",
+        "fks": [],
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "started_at",
+        "type": "TIMESTAMP WITH TIME ZONE",
+        "key": "-",
+        "fks": [],
+        "nullable": false,
+        "default": "now()"
+      },
+      {
+        "name": "ended_at",
+        "type": "TIMESTAMP WITH TIME ZONE",
+        "key": "-",
+        "fks": [],
+        "nullable": true,
+        "default": null
+      }
+    ],
+    "unique_constraints": [],
+    "check_constraints": [],
+    "indexes": [
+      {
+        "name": "ix_sesiones_vestidor_virtual_tenant_id",
+        "columns": [
+          "tenant_id"
+        ],
+        "unique": false
+      },
+      {
+        "name": "ix_sesiones_vestidor_virtual_product_id",
+        "columns": [
+          "product_id"
+        ],
+        "unique": false
+      },
+      {
+        "name": "ix_sesiones_vestidor_virtual_customer_id",
+        "columns": [
+          "customer_id"
+        ],
+        "unique": false
+      }
+    ]
+  },
+  "recomendaciones_ia": {
+    "columns": [
+      {
+        "name": "id",
+        "type": "INTEGER",
+        "key": "PK",
+        "fks": [],
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "tenant_id",
+        "type": "INTEGER",
+        "key": "FK",
+        "fks": [
+          "tenants(id) ON DELETE CASCADE"
+        ],
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "customer_id",
+        "type": "INTEGER",
+        "key": "FK",
+        "fks": [
+          "usuarios(id) ON DELETE SET NULL"
+        ],
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "product_id",
+        "type": "INTEGER",
+        "key": "FK",
+        "fks": [
+          "productos(id) ON DELETE RESTRICT"
+        ],
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "source",
+        "type": "VARCHAR(50)",
+        "key": "-",
+        "fks": [],
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "reason",
+        "type": "TEXT",
+        "key": "-",
+        "fks": [],
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "score",
+        "type": "NUMERIC(5, 4)",
+        "key": "-",
+        "fks": [],
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "context",
+        "type": "JSON",
+        "key": "-",
+        "fks": [],
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "created_at",
+        "type": "TIMESTAMP WITH TIME ZONE",
+        "key": "-",
+        "fks": [],
+        "nullable": false,
+        "default": "now()"
+      },
+      {
+        "name": "expires_at",
+        "type": "TIMESTAMP WITH TIME ZONE",
+        "key": "-",
+        "fks": [],
+        "nullable": true,
+        "default": null
+      }
+    ],
+    "unique_constraints": [],
+    "check_constraints": [],
+    "indexes": [
+      {
+        "name": "ix_recomendaciones_ia_customer_id",
+        "columns": [
+          "customer_id"
+        ],
+        "unique": false
+      },
+      {
+        "name": "ix_recomendaciones_ia_tenant_id",
+        "columns": [
+          "tenant_id"
+        ],
+        "unique": false
+      },
+      {
+        "name": "ix_recomendaciones_ia_product_id",
+        "columns": [
+          "product_id"
+        ],
+        "unique": false
+      }
+    ]
+  },
+  "bitacora": {
+    "columns": [
+      {
+        "name": "id",
+        "type": "INTEGER",
+        "key": "PK",
+        "fks": [],
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "tenant_id",
+        "type": "INTEGER",
+        "key": "FK",
+        "fks": [
+          "tenants(id) ON DELETE SET NULL"
+        ],
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "usuario_id",
+        "type": "INTEGER",
+        "key": "FK",
+        "fks": [
+          "usuarios(id) ON DELETE SET NULL"
+        ],
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "accion",
+        "type": "VARCHAR(30)",
+        "key": "-",
+        "fks": [],
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "tipo_entidad",
+        "type": "VARCHAR(100)",
+        "key": "-",
+        "fks": [],
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "entidad_id",
+        "type": "INTEGER",
+        "key": "-",
+        "fks": [],
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "descripcion",
+        "type": "TEXT",
+        "key": "-",
+        "fks": [],
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "valores_anteriores",
+        "type": "JSON",
+        "key": "-",
+        "fks": [],
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "valores_nuevos",
+        "type": "JSON",
+        "key": "-",
+        "fks": [],
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "direccion_ip",
+        "type": "VARCHAR(45)",
+        "key": "-",
+        "fks": [],
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "agente_usuario",
+        "type": "VARCHAR(500)",
+        "key": "-",
+        "fks": [],
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "fecha_creacion",
+        "type": "TIMESTAMP WITH TIME ZONE",
+        "key": "-",
+        "fks": [],
+        "nullable": false,
+        "default": "now()"
+      }
+    ],
+    "unique_constraints": [],
+    "check_constraints": [],
+    "indexes": [
+      {
+        "name": "ix_bitacora_entity",
+        "columns": [
+          "tipo_entidad",
+          "entidad_id"
+        ],
+        "unique": false
+      },
+      {
+        "name": "ix_bitacora_created_at",
+        "columns": [
+          "fecha_creacion"
+        ],
+        "unique": false
+      },
+      {
+        "name": "ix_bitacora_tenant_id",
+        "columns": [
+          "tenant_id"
+        ],
+        "unique": false
+      },
+      {
+        "name": "ix_bitacora_tenant_created_at",
+        "columns": [
+          "tenant_id",
+          "fecha_creacion"
+        ],
+        "unique": false
+      },
+      {
+        "name": "ix_bitacora_usuario_id",
+        "columns": [
+          "usuario_id"
+        ],
+        "unique": false
+      },
+      {
+        "name": "ix_bitacora_tenant_entity",
+        "columns": [
+          "tenant_id",
+          "tipo_entidad",
+          "entidad_id"
+        ],
+        "unique": false
+      }
+    ]
+  },
+  "sync_operations": {
+    "columns": [
+      {
+        "name": "id",
+        "type": "INTEGER",
+        "key": "PK",
+        "fks": [],
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "tenant_id",
+        "type": "INTEGER",
+        "key": "FK",
+        "fks": [
+          "tenants(id) ON DELETE CASCADE"
+        ],
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "client_operation_id",
+        "type": "VARCHAR(64)",
+        "key": "-",
+        "fks": [],
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "branch_id",
+        "type": "INTEGER",
+        "key": "FK",
+        "fks": [
+          "sucursales(id) ON DELETE RESTRICT"
+        ],
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "user_id",
+        "type": "INTEGER",
+        "key": "FK",
+        "fks": [
+          "usuarios(id) ON DELETE RESTRICT"
+        ],
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "operation_type",
+        "type": "VARCHAR(30)",
+        "key": "-",
+        "fks": [],
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "status",
+        "type": "VARCHAR(30)",
+        "key": "-",
+        "fks": [],
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "payload",
+        "type": "JSON",
+        "key": "-",
+        "fks": [],
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "conflict_detail",
+        "type": "JSON",
+        "key": "-",
+        "fks": [],
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "sale_id",
+        "type": "INTEGER",
+        "key": "FK",
+        "fks": [
+          "ventas(id) ON DELETE SET NULL"
+        ],
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "reservation_id",
+        "type": "INTEGER",
+        "key": "FK",
+        "fks": [
+          "reservas(id) ON DELETE SET NULL"
+        ],
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "processed_at",
+        "type": "TIMESTAMP WITH TIME ZONE",
+        "key": "-",
+        "fks": [],
+        "nullable": false,
+        "default": "now()"
+      },
+      {
+        "name": "created_at",
+        "type": "TIMESTAMP WITH TIME ZONE",
+        "key": "-",
+        "fks": [],
+        "nullable": false,
+        "default": "now()"
+      }
+    ],
+    "unique_constraints": [
+      {
+        "name": "uq_sync_operations_tenant_client_op_id",
+        "columns": [
+          "tenant_id",
+          "client_operation_id"
+        ]
+      }
+    ],
+    "check_constraints": [
+      {
+        "name": "ck_sync_operations_type",
+        "sql": "operation_type IN ('SALE', 'RESERVATION')"
+      },
+      {
+        "name": "ck_sync_operations_status",
+        "sql": "status IN ('CONFIRMED', 'CONFLICT', 'REJECTED')"
+      }
+    ],
+    "indexes": [
+      {
+        "name": "ix_sync_operations_tenant_id",
+        "columns": [
+          "tenant_id"
+        ],
+        "unique": false
+      },
+      {
+        "name": "ix_sync_operations_reservation_id",
+        "columns": [
+          "reservation_id"
+        ],
+        "unique": false
+      },
+      {
+        "name": "ix_sync_operations_sale_id",
+        "columns": [
+          "sale_id"
+        ],
+        "unique": false
+      },
+      {
+        "name": "ix_sync_operations_user_id",
+        "columns": [
+          "user_id"
+        ],
+        "unique": false
+      },
+      {
+        "name": "ix_sync_operations_tenant_created",
+        "columns": [
+          "tenant_id",
+          "created_at"
+        ],
+        "unique": false
+      },
+      {
+        "name": "ix_sync_operations_branch_id",
+        "columns": [
+          "branch_id"
+        ],
+        "unique": false
+      },
+      {
+        "name": "ix_sync_operations_client_operation_id",
+        "columns": [
+          "client_operation_id"
+        ],
+        "unique": false
+      }
+    ]
+  }
+}

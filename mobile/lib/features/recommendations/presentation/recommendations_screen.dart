@@ -115,7 +115,9 @@ class _RecommendationsScreenState extends ConsumerState<RecommendationsScreen> {
                     child: Row(
                       children: [
                         CircleAvatar(
-                          backgroundColor: AppColors.goldDeep.withValues(alpha: 0.2),
+                          backgroundColor: AppColors.goldDeep.withValues(
+                            alpha: 0.2,
+                          ),
                           child: const Icon(
                             Icons.auto_awesome,
                             color: AppColors.goldDeep,

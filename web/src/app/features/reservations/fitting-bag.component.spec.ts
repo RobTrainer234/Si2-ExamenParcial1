@@ -4,6 +4,7 @@ import { of } from 'rxjs';
 import { vi } from 'vitest';
 
 import { CatalogDetail, CatalogVariant } from '../../core/models/api.models';
+import { OfflineTransactionService } from '../../core/offline/offline-transaction.service';
 import { FittingBagService } from '../../core/reservations/fitting-bag.service';
 import { ReservationService } from '../../core/reservations/reservation.service';
 import { FittingBagComponent } from './fitting-bag.component';
@@ -13,14 +14,28 @@ describe('FittingBagComponent', () => {
   let component: FittingBagComponent;
   let bag: FittingBagService;
   let reservations: { create: ReturnType<typeof vi.fn> };
+  let offlineTx: { recordOfflineReservation: ReturnType<typeof vi.fn> };
 
   beforeEach(async () => {
     localStorage.clear();
     reservations = { create: vi.fn(() => of({ id: 42 } as any)) };
+    offlineTx = {
+      recordOfflineReservation: vi.fn(() =>
+        Promise.resolve({
+          client_operation_id: 'op-web-res-001',
+          operation_type: 'RESERVATION',
+          status: 'PENDING_SYNC',
+        } as any),
+      ),
+    };
 
     await TestBed.configureTestingModule({
       imports: [FittingBagComponent],
-      providers: [provideRouter([]), { provide: ReservationService, useValue: reservations }],
+      providers: [
+        provideRouter([]),
+        { provide: ReservationService, useValue: reservations },
+        { provide: OfflineTransactionService, useValue: offlineTx },
+      ],
     }).compileComponents();
 
     bag = TestBed.inject(FittingBagService);
@@ -67,6 +82,34 @@ describe('FittingBagComponent', () => {
 
     expect(bag.sharedBranches()).toEqual([]);
     expect(reservations.create).not.toHaveBeenCalled();
+  });
+
+  it('records an offline reservation in IndexedDB when offline (CU-09)', async () => {
+    vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(false);
+    bag.add(product(1, 'Camisa Lino'), variant(11, 'S', 'Blanco'), [availableBranch(7, 4)]);
+
+    component.selectedBranchId = 7;
+    component.visitDate = component.minimumReservationDate;
+    component.customerName = 'Lucía Vargas';
+    component.customerNit = '8492013';
+    component.customerPhone = '71029384';
+    component.submit();
+
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(reservations.create).not.toHaveBeenCalled();
+    expect(offlineTx.recordOfflineReservation).toHaveBeenCalledTimes(1);
+    expect(offlineTx.recordOfflineReservation).toHaveBeenCalledWith(
+      7,
+      expect.objectContaining({
+        customer_name: 'Lucía Vargas',
+        customer_nit: '8492013',
+        customer_phone: '71029384',
+        items: [{ product_variant_id: 11, quantity: 1 }],
+      }),
+    );
+    expect(component.offlineReservationId).toBe('op-web-res-001');
   });
 });
 

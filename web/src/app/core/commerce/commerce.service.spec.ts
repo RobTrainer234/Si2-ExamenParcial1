@@ -167,6 +167,62 @@ describe('CommerceService', () => {
       payments: [],
     });
   });
+
+  it('looks up a sale by receipt number', () => {
+    service.lookupSaleForExchange('ORD-42').subscribe((sale) => expect(sale.sale_id).toBe(42));
+    const request = http.expectOne(`${appConfig.apiBaseUrl}/sales/lookup/ORD-42`);
+    expect(request.request.method).toBe('GET');
+    request.flush({ sale_id: 42, order_number: 'ORD-42', sale_date: '2030-01-01', branch_id: 3, status: 'PAID', items: [] });
+  });
+
+  it('sends quote inputs without client price fields', () => {
+    service.exchangeQuote(42, { returned_variant_id: 7, returned_quantity: 1, new_variant_id: 9, new_quantity: 1 }).subscribe();
+    const request = http.expectOne(`${appConfig.apiBaseUrl}/sales/42/exchange/quote`);
+    expect(request.request.method).toBe('POST');
+    expect(request.request.body).toEqual({ returned_variant_id: 7, returned_quantity: 1, new_variant_id: 9, new_quantity: 1 });
+    request.flush({ returned_value: 100, replacement_unit_price: 120, delivered_value: 120, difference: 20, cash_settlement_eligible: true, available_stock: 3, reserved_stock: 0, expires_at: '2030-01-01T00:10:00Z', quote_fingerprint: 'fp' });
+  });
+
+  it('uses the CU26 return and credit-note contracts without leaking extra customer data', () => {
+    service.lookupReturn('FS-RETURN-1').subscribe((result) => expect(result.customer_id).toBe(7));
+    const lookup = http.expectOne(`${appConfig.apiBaseUrl}/returns/lookup/FS-RETURN-1`);
+    expect(lookup.request.method).toBe('GET');
+    lookup.flush({ sale_id: 1, order_number: 'FS-RETURN-1', sale_date: '2030-01-01T00:00:00Z', branch_id: 2, status: 'CONFIRMED', customer_id: 7, items: [] });
+
+    service.searchReturnCustomers('Ana').subscribe((customers) => expect(customers[0].id).toBe(7));
+    const customers = http.expectOne(`${appConfig.apiBaseUrl}/returns/customers?q=Ana`);
+    expect(customers.request.method).toBe('GET');
+    customers.flush([{ id: 7, name: 'Ana' }]);
+
+    const request = { items: [{ sale_item_id: 4, quantity: 1, condition: 'SELLABLE' as const }], beneficiary_customer_id: 7, reason: 'Talla', idempotency_key: 'return-key-123' };
+    service.submitReturn(1, request).subscribe((result) => expect(result.credit_note_code).toBe('NC-1'));
+    const submit = http.expectOne(`${appConfig.apiBaseUrl}/sales/1/return`);
+    expect(submit.request.body).toEqual(request);
+    submit.flush({ id: 1, return_id: 8, credit_note_code: 'NC-1', credit_note_amount: '10.00' });
+
+    service.lookupCreditNote({ credit_note_code: 'NC-1', customer_id: 7, branch_id: 2 }).subscribe((result) => expect(result.available_balance).toBe('10.00'));
+    const note = http.expectOne(`${appConfig.apiBaseUrl}/credit-notes/lookup`);
+    expect(note.request.body).toEqual({ credit_note_code: 'NC-1', customer_id: 7, branch_id: 2 });
+    note.flush({ available_balance: '10.00', customer_id: 7, expires_at: null });
+
+    const settlement = { credit_note_code: 'NC-1', idempotency_key: 'settle-key-123' };
+    service.settleCreditNote(3, settlement).subscribe((result) => expect(result.applied_amount).toBe('10.00'));
+    const settle = http.expectOne(`${appConfig.apiBaseUrl}/sales/3/credit-note-settlement`);
+    expect(settle.request.body).toEqual(settlement);
+    settle.flush({ id: 3, redemption_id: 9, applied_amount: '10.00', post_redemption_balance: '0.00', cash_change: '0.00' });
+  });
+
+  it('finalizes an exchange with the quote fingerprint and idempotency key', () => {
+    const input = { returned_variant_id: 7, returned_quantity: 1, new_variant_id: 9, new_quantity: 1, quote_fingerprint: 'fp', quote_expires_at: '2030-01-01T00:10:00Z', idempotency_key: 'idem-1', cash_tendered: 20 };
+    service.finalizeExchange(42, input).subscribe((result) => {
+      expect(result.status).toBe('EXCHANGED');
+      expect(result.quarantine_status).toBe('PENDING');
+    });
+    const request = http.expectOne(`${appConfig.apiBaseUrl}/sales/42/exchange`);
+    expect(request.request.method).toBe('POST');
+    expect(request.request.body).toEqual(input);
+    request.flush({ quarantine_id: 8, status: 'EXCHANGED', quarantine_status: 'PENDING' });
+  });
 });
 
 

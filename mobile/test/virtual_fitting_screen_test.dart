@@ -32,9 +32,9 @@ void main() {
 
       expect(virtualFitting.vtonTryOnCalls, 0);
       expect(find.byType(Image), findsNothing);
-      expect(find.text('VTON PENDIENTE'), findsOneWidget);
+      expect(find.text('RESULTADO GEMINI'), findsOneWidget);
       expect(find.textContaining('99.'), findsNothing);
-      expect(find.text('CALCE: PENDIENTE'), findsOneWidget);
+      expect(find.text('RESULTADO: GEMINI'), findsOneWidget);
       expect(find.text('TALLA SUGERIDA: PENDIENTE'), findsOneWidget);
     },
   );
@@ -56,7 +56,7 @@ void main() {
     await _tapGalleryAction(tester);
 
     expect(virtualFitting.vtonTryOnCalls, 0);
-    expect(find.text('VTON PENDIENTE'), findsOneWidget);
+    expect(find.text('RESULTADO GEMINI'), findsOneWidget);
     expect(find.text('Generar prueba virtual'), findsNothing);
   });
 
@@ -87,7 +87,7 @@ void main() {
     expect(virtualFitting.lastImageBase64, base64Encode(photoBytes));
     expect(virtualFitting.lastMetrics?['device'], 'gallery_photo');
     expect(find.byType(Image), findsOneWidget);
-    expect(find.textContaining('Estado proveedor: completed'), findsOneWidget);
+    expect(find.textContaining('Gemini: completed'), findsOneWidget);
   });
 
   testWidgets('invalid gallery input is rejected before upload', (
@@ -197,7 +197,7 @@ void main() {
     await tester.pump();
 
     expect(virtualFitting.vtonTryOnCalls, 0);
-    expect(find.text('VTON PENDIENTE'), findsOneWidget);
+    expect(find.text('RESULTADO GEMINI'), findsOneWidget);
     expect(
       find.text(
         'Prenda seleccionada. Elegí o capturá una foto para generar la prueba virtual.',

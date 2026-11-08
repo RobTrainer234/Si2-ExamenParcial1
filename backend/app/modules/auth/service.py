@@ -22,8 +22,20 @@ def _as_utc(value: datetime) -> datetime:
 
 
 def _user_response(user: User) -> dict[str, object]:
+    branches = [
+        {"id": b.id, "name": b.name}
+        for b in (user.branches or [])
+        if user.tenant_id is None or b.tenant_id is None or b.tenant_id == user.tenant_id
+    ]
+    tenant_summary = (
+        {"id": user.tenant.id, "name": user.tenant.name, "status": user.tenant.status}
+        if user.tenant is not None
+        else None
+    )
     return {
         "id": user.id,
+        "tenant_id": user.tenant_id,
+        "tenant": tenant_summary,
         "first_name": user.first_name,
         "last_name": user.last_name,
         "email": user.email,
@@ -32,7 +44,7 @@ def _user_response(user: User) -> dict[str, object]:
         "is_active": user.is_active,
         "permissions": sorted(permission.code for permission in user.role.permissions if permission.is_active),
         "supplier_id": user.supplier_id,
-        "branches": [{"id": b.id, "name": b.name} for b in user.branches] if user.branches else [],
+        "branches": branches,
     }
 
 
@@ -48,16 +60,24 @@ def _issue_tokens(db: Session, user: User) -> dict[str, object]:
         )
     )
     return {
-        "access_token": create_access_token(user.id, user.role.code, session_id),
+        "access_token": create_access_token(user.id, user.role.code, session_id, tenant_id=user.tenant_id),
         "refresh_token": refresh_token,
         "token_type": "bearer",
         "user": _user_response(user),
     }
 
 
+def _ensure_tenant_active(user: User) -> None:
+    if user.tenant is not None and user.tenant.status != "ACTIVE":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={"code": "TENANT_INACTIVE", "message": "La empresa asociada al usuario no está activa."},
+        )
+
+
 def register(db: Session, data: RegisterRequest) -> dict[str, object]:
     email = str(data.email).lower()
-    if db.scalar(select(User).where(User.email == email)):
+    if db.scalar(select(User).where(User.email == email, User.tenant_id.is_(None))):
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail={"code": "EMAIL_ALREADY_EXISTS", "message": "El correo electrónico ya está registrado."})
     client_role = db.scalar(select(Role).where(Role.code == "CLIENT", Role.is_active.is_(True)))
     if client_role is None:
@@ -77,15 +97,22 @@ def register(db: Session, data: RegisterRequest) -> dict[str, object]:
 
 
 def login(db: Session, email: str, password: str) -> dict[str, object]:
-    user = db.scalar(
+    candidates = db.scalars(
         select(User)
-        .options(joinedload(User.role).joinedload(Role.permissions), selectinload(User.branches))
+        .options(
+            joinedload(User.tenant),
+            joinedload(User.role).joinedload(Role.permissions),
+            selectinload(User.branches),
+        )
         .where(User.email == email.lower())
-    )
-    if user is None or not verify_password(password, user.password_hash):
+        .order_by(User.id)
+    ).unique().all()
+    user = next((candidate for candidate in candidates if verify_password(password, candidate.password_hash)), None)
+    if user is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail={"code": "INVALID_CREDENTIALS", "message": "Correo o contraseña incorrectos."})
     if not user.is_active or not user.role.is_active:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail={"code": "USER_INACTIVE", "message": "El usuario está inactivo."})
+    _ensure_tenant_active(user)
     return _issue_tokens(db, user)
 
 
@@ -94,14 +121,19 @@ def refresh(db: Session, raw_token: str) -> dict[str, object]:
     now = datetime.now(UTC)
     if token_record is None or token_record.revoked_at is not None or _as_utc(token_record.expires_at) <= now:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail={"code": "INVALID_REFRESH_TOKEN", "message": "La sesión de renovación no es válida."})
-    token_record.revoked_at = now
     user = db.scalar(
         select(User)
-        .options(joinedload(User.role).joinedload(Role.permissions), selectinload(User.branches))
+        .options(
+            joinedload(User.tenant),
+            joinedload(User.role).joinedload(Role.permissions),
+            selectinload(User.branches),
+        )
         .where(User.id == token_record.user_id)
     )
     if user is None or not user.is_active or not user.role.is_active:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail={"code": "USER_INACTIVE", "message": "El usuario está inactivo."})
+    _ensure_tenant_active(user)
+    token_record.revoked_at = now
     return _issue_tokens(db, user)
 
 

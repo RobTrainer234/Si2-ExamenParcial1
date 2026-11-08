@@ -5,7 +5,7 @@ import logging
 import re
 from datetime import datetime
 from decimal import Decimal
-from typing import Any
+from typing import Any, Literal
 
 import httpx
 from pydantic import ValidationError
@@ -15,9 +15,17 @@ from app.modules.reports.schemas import ReportAssistantIntent, ReportAssistantIn
 
 logger = logging.getLogger(__name__)
 
-_ALLOWED_KINDS: set[ReportAssistantIntentKind] = {"dashboard", "top_products", "sales_by_branch", "inventory", "reservations"}
+_ALLOWED_KINDS: set[ReportAssistantIntentKind] = {
+    "dashboard",
+    "top_products",
+    "sales_by_branch",
+    "inventory",
+    "reservations",
+    "revenue_by_category",
+}
 _OPENAI_URL = "https://api.openai.com/v1/responses"
 _TIMEOUT_SECONDS = 8.0
+_TRANSCRIPTION_TIMEOUT_SECONDS = 35.0
 
 
 def local_intent(prompt: str, filters: ReportFilters) -> ReportAssistantIntent:
@@ -33,6 +41,7 @@ def local_intent(prompt: str, filters: ReportFilters) -> ReportAssistantIntent:
         "top_products": 0,
         "sales_by_branch": 0,
         "reservations": 0,
+        "revenue_by_category": 0,
         "dashboard": 0,
     }
 
@@ -115,6 +124,21 @@ def local_intent(prompt: str, filters: ReportFilters) -> ReportAssistantIntent:
         if token in normalized:
             scores["dashboard"] += 1
 
+    # 6. Señales de Ingresos por Categoría / Familias / Colecciones
+    cat_strong = (
+        "por categoria", "por categorias", "ingresos por categoria",
+        "categoria mas", "categorias lideres", "que categoria", "que categorias",
+        "ventas por categoria", "recaudacion por categoria", "categoria con mayor",
+        "categorias con mayor", "categoria que mas"
+    )
+    cat_medium = ("categoria", "categorias", "familia", "familias", "linea de ropa", "lineas de ropa", "coleccion")
+    for phrase in cat_strong:
+        if phrase in normalized:
+            scores["revenue_by_category"] += 4
+    for token in cat_medium:
+        if token in normalized:
+            scores["revenue_by_category"] += 2
+
     # Si la consulta combina sucursal Y producto estrella simultáneamente, el dashboard brinda la respuesta consolidada
     if scores["sales_by_branch"] > 0 and scores["top_products"] > 0:
         scores["dashboard"] += 5
@@ -129,20 +153,39 @@ def local_intent(prompt: str, filters: ReportFilters) -> ReportAssistantIntent:
     if max_score == 0:
         if any(token in normalized for token in ("producto", "productos", "prendas")):
             best_kind = "top_products"
+        elif any(token in normalized for token in ("categoria", "categorias")):
+            best_kind = "revenue_by_category"
         else:
             best_kind = "dashboard"
+
+    # Determinación adaptativa del gráfico visual recomendado
+    chart_type: Literal["bar", "line", "pie", "table", "kpi"] = "bar"
+    if any(k in normalized for k in ("torta", "pie", "circular", "porcentaje", "distribucion")) or best_kind == "revenue_by_category":
+        chart_type = "pie"
+    elif best_kind == "top_products":
+        chart_type = "bar" if not any(k in normalized for k in ("linea", "lineas", "tendencia", "evolucion")) else "line"
+    elif any(k in normalized for k in ("linea", "lineas", "temporal", "evolucion", "tendencia", "historico")):
+        chart_type = "line"
+    elif any(k in normalized for k in ("tabla", "detalle", "listado")) or best_kind == "inventory":
+        chart_type = "table"
+    elif best_kind == "dashboard" or "kpi" in normalized or "resumen" in normalized:
+        chart_type = "kpi"
+    else:
+        chart_type = "bar"
 
     reasoning_map: dict[ReportAssistantIntentKind, str] = {
         "inventory": "Detección de consulta sobre inventario, nivel de existencias y urgencia de reposición de stock.",
         "top_products": "Análisis de volumen de ventas por artículo, ranking de popularidad y prendas con mayor demanda.",
         "sales_by_branch": "Evaluación del rendimiento comercial, facturación y transacciones distribuidas por sucursal.",
         "reservations": "Auditoría del flujo operativo de reservas de probador/vestidor y sus estados de atención.",
+        "revenue_by_category": "Análisis comparativo de ingresos generados y rentabilidad desagregada por categorías de producto.",
         "dashboard": "Consolidado integral multidimensional de métricas financieras, canales y KPIs comerciales.",
     }
 
     return ReportAssistantIntent(
         kind=best_kind,
         filters=filters,
+        chart_type=chart_type,
         reasoning=reasoning_map.get(best_kind, "Interpretación analítica local de la solicitud en lenguaje natural."),
     )
 
@@ -208,8 +251,9 @@ def _gemini_interpret_intent(prompt: str, filters: ReportFilters) -> ReportAssis
     system_prompt = (
         "Clasifica pedidos de reportes de FashionStore Atelier. "
         "Devuelve exclusivamente un objeto JSON válido con los campos:\n"
-        '- "kind": uno de ["dashboard", "top_products", "sales_by_branch", "inventory", "reservations"]\n'
+        '- "kind": uno de ["dashboard", "top_products", "sales_by_branch", "inventory", "reservations", "revenue_by_category"]\n'
         '- "filters": {"date_from": null o string ISO, "date_to": null o string ISO, "branch_id": null o int}\n'
+        '- "chart_type": uno de ["bar", "line", "pie", "table", "kpi"]\n'
         '- "reasoning": breve texto explicando la clasificación analítica.\n'
         "No incluyas markdown adicional ni explicaciones fuera del JSON."
     )
@@ -434,6 +478,19 @@ def _local_narrative(intent: ReportAssistantIntent, data: Any, prompt: str = "")
         pending = sum(int(item.get("count", 0)) for item in items if str(item.get("status", "")).upper() in ("PENDING", "CONFIRMED", "PENDIENTE"))
         return f"Auditoría de vestidores: {total} reserva(s) registradas, con {pending} apartados pendientes o activos que requieren atención en sucursal."
 
+    if intent.kind == "revenue_by_category":
+        items = data if isinstance(data, list) else []
+        if not items:
+            return "No se registran ventas categorizadas para los filtros seleccionados."
+        top_cat = items[0]
+        total_rev = sum(Decimal(str(i.get("total_revenue", 0))) for i in items)
+        top_pct = top_cat.get("percentage", 0.0)
+        return (
+            f"Análisis de ingresos por categoría: La categoría dominante es '{top_cat['category_name']}' con Bs {top_cat['total_revenue']} "
+            f"({top_pct}% de los ingresos del período a través de {top_cat['units_sold']} prendas vendidas). "
+            f"Recomendación estratégica: Fortalecer la disponibilidad y reposición de la línea '{top_cat['category_name']}' y lanzar promociones cruzadas con categorías de menor rotación."
+        )
+
     # intent.kind == "dashboard"
     dash = data if isinstance(data, dict) else {}
     rev = dash.get("revenue", {}) if isinstance(dash.get("revenue"), dict) else {}
@@ -514,3 +571,39 @@ def _normalize(value: str) -> str:
     lowered = value.lower()
     replacements = str.maketrans("áéíóúüñ", "aeiouun")
     return re.sub(r"\s+", " ", lowered.translate(replacements)).strip()
+
+
+def transcribe_audio_prompt(audio_base64: str, mime_type: str = "audio/webm") -> str | None:
+    """Transcribe audio with Gemini when configured, without fabricated fallback text."""
+    if not settings.gemini_api_key:
+        return None
+
+    try:
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{settings.gemini_model}:generateContent?key={settings.gemini_api_key}"
+        payload = {
+            "contents": [
+                {
+                    "role": "user",
+                    "parts": [
+                        {"text": "Transcribe exactamente las palabras habladas en este audio en español. Devuelve únicamente el texto transcripto sin comentarios."},
+                        {"inlineData": {"mimeType": mime_type, "data": audio_base64}},
+                    ],
+                }
+            ]
+        }
+        with httpx.Client(timeout=_TRANSCRIPTION_TIMEOUT_SECONDS) as client:
+            response = client.post(url, json=payload)
+            if response.status_code != 200:
+                return None
+            data = response.json()
+            candidates = data.get("candidates", [])
+            if not isinstance(candidates, list) or not candidates:
+                return None
+            parts = candidates[0].get("content", {}).get("parts", [])
+            if not isinstance(parts, list) or not parts:
+                return None
+            text = parts[0].get("text")
+            return text.strip() if isinstance(text, str) and text.strip() else None
+    except Exception as exc:
+        logger.info("Gemini audio transcription unavailable: %s", exc.__class__.__name__)
+        return None

@@ -41,15 +41,4 @@ def logout(data: LogoutRequest, db=Depends(get_db)) -> Response:
 
 @router.get("/me", response_model=UserResponse)
 def me(current_user: Annotated[User, Depends(get_current_user)]) -> dict[str, object]:
-    return {
-        "id": current_user.id,
-        "first_name": current_user.first_name,
-        "last_name": current_user.last_name,
-        "email": current_user.email,
-        "phone": current_user.phone,
-        "role": current_user.role.code,
-        "is_active": current_user.is_active,
-        "permissions": sorted(permission.code for permission in current_user.role.permissions if permission.is_active),
-        "supplier_id": current_user.supplier_id,
-        "branches": [{"id": b.id, "name": b.name} for b in current_user.branches],
-    }
+    return service._user_response(current_user)

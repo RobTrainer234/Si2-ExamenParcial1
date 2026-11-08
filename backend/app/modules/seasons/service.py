@@ -18,7 +18,7 @@ def _not_found(code: str, message: str) -> HTTPException:
 
 
 def get_season(db: Session, season_id: int) -> Season:
-    season = db.get(Season, season_id)
+    season = db.scalar(select(Season).where(Season.id == season_id))
     if season is None:
         raise _not_found("SEASON_NOT_FOUND", "Temporada no encontrada.")
     return season
@@ -51,10 +51,19 @@ def list_seasons(db: Session, page: int, page_size: int, query: str | None) -> d
     return {"items": [serialize_season(item) for item in items], "page": page, "page_size": page_size, "total": total, "total_pages": ceil(total / page_size) if total else 0}
 
 
+def _tenant_condition(column: object, tenant_id: int | None):
+    return column.is_(None) if tenant_id is None else column == tenant_id
+
+
+def _name_matches(column: object, name: str):
+    return (column == name) | (func.lower(column) == name.lower())
+
+
 def create_season(db: Session, data: SeasonCreateRequest) -> Season:
-    if db.scalar(select(Season.id).where(func.lower(Season.name) == data.name.lower())):
+    tenant_id = db.info.get("tenant_id")
+    if db.scalar(select(Season.id).where(_tenant_condition(Season.tenant_id, tenant_id), _name_matches(Season.name, data.name))):
         raise _conflict("La temporada ya está registrada.")
-    season = Season(**data.model_dump())
+    season = Season(tenant_id=tenant_id, **data.model_dump())
     db.add(season)
     try:
         db.flush()
@@ -66,7 +75,13 @@ def create_season(db: Session, data: SeasonCreateRequest) -> Season:
 
 def update_season(db: Session, season: Season, data: SeasonUpdateRequest) -> Season:
     values = data.model_dump(exclude_unset=True)
-    if values.get("name") and db.scalar(select(Season.id).where(func.lower(Season.name) == values["name"].lower(), Season.id != season.id)):
+    if values.get("name") and db.scalar(
+        select(Season.id).where(
+            _tenant_condition(Season.tenant_id, season.tenant_id),
+            _name_matches(Season.name, values["name"]),
+            Season.id != season.id,
+        )
+    ):
         raise _conflict("La temporada ya está registrada.")
     starts_on = values.get("starts_on", season.starts_on)
     ends_on = values.get("ends_on", season.ends_on)

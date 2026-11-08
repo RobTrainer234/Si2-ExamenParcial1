@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;
@@ -7,12 +8,16 @@ import '../errors/api_exception.dart';
 import '../notifications/notification_service.dart';
 
 class ApiClient {
-  ApiClient({http.Client? client, NotificationService? notifications})
-    : _client = client ?? http.Client(),
-      _notifications = notifications ?? NotificationService();
+  ApiClient({
+    http.Client? client,
+    NotificationService? notifications,
+    this.timeoutForPath,
+  }) : _client = client ?? http.Client(),
+       _notifications = notifications ?? NotificationService();
 
   final http.Client _client;
   final NotificationService _notifications;
+  final Duration Function(String path, Duration timeout)? timeoutForPath;
   String? accessToken;
 
   Future<dynamic> get(String path, {Map<String, String>? query}) async {
@@ -73,9 +78,13 @@ class ApiClient {
   }) async {
     late final http.Response response;
     try {
-      response = await request();
+      response = await request().timeout(_timeoutFor(path));
     } catch (e) {
-      final message = 'Error al conectar con el servidor ($e).\nURL: ${AppConfig.apiBaseUrl}$path';
+      final reason = e is TimeoutException
+          ? 'La solicitud tardó demasiado.'
+          : e.toString();
+      final message =
+          'Error al conectar con el servidor ($reason).\nURL: ${AppConfig.apiBaseUrl}$path';
       _notifications.showError(message);
       throw ApiException(message, 0);
     }
@@ -87,12 +96,27 @@ class ApiClient {
     }
     if (response.statusCode < 200 || response.statusCode >= 300) {
       final detail = body is Map<String, dynamic> ? body['detail'] : null;
-      final message = detail is Map<String, dynamic>
-          ? detail['message'] as String?
-          : detail as String?;
-      final resolvedMessage = message ?? 'Error del servidor (${response.statusCode}): ${response.body}';
+      final message = switch (detail) {
+        Map<String, dynamic>() => detail['message'] as String?,
+        String value => value,
+        List<dynamic> values =>
+          values
+              .map(
+                (value) => value is Map<String, dynamic>
+                    ? value['msg']?.toString() ?? value.toString()
+                    : value.toString(),
+              )
+              .join('. '),
+        _ => null,
+      };
+      final resolvedMessage =
+          message ??
+          'Error del servidor (${response.statusCode}): ${response.body}';
+      final code = detail is Map<String, dynamic> && detail['code'] is String
+          ? detail['code'] as String
+          : null;
       _notifications.showError(resolvedMessage);
-      throw ApiException(resolvedMessage, response.statusCode);
+      throw ApiException(resolvedMessage, response.statusCode, code: code);
     }
     if (_isMutating(method)) {
       _notifications.showSuccess(_successMessage(method, path));
@@ -102,6 +126,15 @@ class ApiClient {
 
   bool _isMutating(String method) =>
       {'POST', 'PATCH', 'DELETE'}.contains(method);
+
+  Duration _timeoutFor(String path) {
+    final timeout = path == '/catalogo/vton/try-on'
+        ? const Duration(seconds: 90)
+        : path == '/reports/transcribe-audio'
+        ? const Duration(seconds: 45)
+        : const Duration(seconds: 10);
+    return timeoutForPath?.call(path, timeout) ?? timeout;
+  }
 
   String _successMessage(String method, String path) {
     if (path == '/auth/login') return 'Inicio de sesión correcto.';

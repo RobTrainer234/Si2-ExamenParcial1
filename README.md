@@ -132,6 +132,28 @@ flutter test
 En el emulador Android, `10.0.2.2` apunta al host local. En un dispositivo
 fisico se debe usar la IP accesible del equipo que ejecuta el backend.
 
+Para generar la APK release contra producción:
+
+```bash
+cd mobile
+flutter build apk --release \
+  --dart-define=API_URL=http://fashionstore.3.94.34.64.nip.io/api/v1 \
+  --dart-define=STRIPE_PUBLISHABLE_KEY=pk_live_or_test_public_key \
+  --dart-define=STRIPE_CURRENCY=USD
+```
+
+En PowerShell puedes ejecutarlo en una sola línea:
+
+```powershell
+flutter build apk --release --dart-define="API_URL=http://fashionstore.3.94.34.64.nip.io/api/v1" --dart-define="STRIPE_PUBLISHABLE_KEY=pk_live_or_test_public_key" --dart-define="STRIPE_CURRENCY=USD"
+```
+
+Salida: `mobile/build/app/outputs/flutter-apk/app-release.apk`.
+
+Para abrir el proyecto en Android Studio, selecciona la carpeta raíz
+`mobile/` como proyecto Flutter. La APK release usa la clave debug para
+firmado local; configura un keystore propio antes de publicarla en Play Store.
+
 ## Verificacion completa
 
 ```bash

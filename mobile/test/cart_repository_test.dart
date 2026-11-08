@@ -22,36 +22,39 @@ void main() {
     expect(result['order_number'], 'FS-10');
   });
 
-  test('envia fulfillment de delivery con datos de envio estructurados', () async {
-    final shippingDetails = {
-      'recipient_name': 'Ana Pérez',
-      'recipient_ci': '1234567',
-      'recipient_phone': '70000000',
-      'department_or_city': 'Santa Cruz',
-      'zone': 'Equipetrol',
-      'street': 'Av. San Martín',
-      'house_number': '55',
-      'reference': 'Portón negro',
-    };
-    final client = MockClient((request) async {
-      expect(request.method, 'POST');
-      expect(request.url.path.endsWith('/purchases/digital'), isTrue);
-      expect(jsonDecode(request.body), {
-        'branch_id': 4,
-        'fulfillment_type': 'DELIVERY',
-        'shipping_details': shippingDetails,
+  test(
+    'envia fulfillment de delivery con datos de envio estructurados',
+    () async {
+      final shippingDetails = {
+        'recipient_name': 'Ana Pérez',
+        'recipient_ci': '1234567',
+        'recipient_phone': '70000000',
+        'department_or_city': 'Santa Cruz',
+        'zone': 'Equipetrol',
+        'street': 'Av. San Martín',
+        'house_number': '55',
+        'reference': 'Portón negro',
+      };
+      final client = MockClient((request) async {
+        expect(request.method, 'POST');
+        expect(request.url.path.endsWith('/purchases/digital'), isTrue);
+        expect(jsonDecode(request.body), {
+          'branch_id': 4,
+          'fulfillment_type': 'DELIVERY',
+          'shipping_details': shippingDetails,
+        });
+        return http.Response('{"id":11,"order_number":"FS-11"}', 200);
       });
-      return http.Response('{"id":11,"order_number":"FS-11"}', 200);
-    });
 
-    final result = await CartRepository(ApiClient(client: client)).purchase(
-      4,
-      fulfillmentType: 'DELIVERY',
-      shippingDetails: shippingDetails,
-    );
+      final result = await CartRepository(ApiClient(client: client)).purchase(
+        4,
+        fulfillmentType: 'DELIVERY',
+        shippingDetails: shippingDetails,
+      );
 
-    expect(result['order_number'], 'FS-11');
-  });
+      expect(result['order_number'], 'FS-11');
+    },
+  );
 
   test('envia firma sandbox al aprobar pago electronico demo', () async {
     final client = MockClient((request) async {
@@ -86,5 +89,47 @@ void main() {
     ).confirmStripePayment('pi_test_123');
 
     expect(result['order_number'], 'ORD-42');
+  });
+
+  test('genera un pago QR para una venta digital', () async {
+    final client = MockClient((request) async {
+      expect(request.method, 'POST');
+      expect(request.url.path.endsWith('/payments/qr/generate'), isTrue);
+      expect(jsonDecode(request.body), {
+        'sale_id': 42,
+        'client_base_url': 'https://fashionstore.example',
+      });
+      return http.Response(
+        '{"sale_id":42,"amount":"195.00","transaction_reference":"QR-42","qr_image_url":"https://example/qr.png"}',
+        201,
+      );
+    });
+
+    final result = await CartRepository(
+      ApiClient(client: client),
+    ).generateQrPayment(42, clientBaseUrl: 'https://fashionstore.example');
+
+    expect(result['transaction_reference'], 'QR-42');
+  });
+
+  test('confirma una transferencia QR con el monto de la venta', () async {
+    final client = MockClient((request) async {
+      expect(request.method, 'POST');
+      expect(
+        request.url.path.endsWith('/payments/qr/confirm-transfer'),
+        isTrue,
+      );
+      expect(jsonDecode(request.body), {
+        'transaction_reference': 'QR-42',
+        'amount': '195.00',
+      });
+      return http.Response('{"order_number":"FS-42"}', 200);
+    });
+
+    final result = await CartRepository(
+      ApiClient(client: client),
+    ).confirmQrTransfer('QR-42', '195.00');
+
+    expect(result['order_number'], 'FS-42');
   });
 }

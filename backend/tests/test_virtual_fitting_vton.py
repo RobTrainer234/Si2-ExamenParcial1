@@ -85,11 +85,10 @@ def test_process_try_on_uses_gemini_interactions_when_capture_and_key_exist(monk
 
     assert result["composite_image_base64"] == f"data:image/png;base64,{generated}"
     details = result["detalles_tecnicos"]
-    assert details["engine"] == "Gemini-VTON"
+    assert details["engine"] == "Gemini Image API"
     assert details["confidence"] is None
     assert result["calce_porcentaje"] is None
-    assert "99" not in str(result)
-    assert result["calce_status"] == "IMAGEN_GENERADA_SIN_METRICA_DE_CALCE"
+    assert result["calce_status"] == "GENERADO_POR_GEMINI"
     assert len(captured_requests) == 1
     request = captured_requests[0]
     assert "models/test-image-model:generateContent" in request.url

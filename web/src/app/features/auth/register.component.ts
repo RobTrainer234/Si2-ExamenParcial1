@@ -117,6 +117,9 @@ import { passwordPolicyValidator } from '../../core/auth/password-security.helpe
           </button>
         </form>
         <p class="form-footer">¿Ya tienes cuenta? <a routerLink="/login">Inicia sesión</a></p>
+        <p class="form-footer" style="margin-top: 8px; font-size: 0.76rem;">
+          ¿Tienes una tienda de ropa? <a routerLink="/register-company">Comienza tu prueba de 14 días para empresas</a>
+        </p>
       </section>
     </div>
   `,

@@ -22,9 +22,16 @@ def verify_password(password: str, password_hash: str) -> bool:
         return False
 
 
-def create_access_token(user_id: int, role_code: str, session_id: str) -> str:
+def create_access_token(user_id: int, role_code: str, session_id: str, tenant_id: int | None = None) -> str:
     expires_at = datetime.now(UTC) + timedelta(minutes=settings.access_token_expire_minutes)
-    payload = {"sub": str(user_id), "role": role_code, "type": "access", "jti": session_id, "exp": expires_at}
+    payload = {
+        "sub": str(user_id),
+        "role": role_code,
+        "tenant_id": tenant_id,
+        "type": "access",
+        "jti": session_id,
+        "exp": expires_at,
+    }
     return jwt.encode(payload, settings.jwt_secret, algorithm=settings.jwt_algorithm)
 
 

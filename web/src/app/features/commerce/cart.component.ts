@@ -5,7 +5,7 @@ import { RouterLink } from '@angular/router';
 import { Subscription, catchError, finalize, firstValueFrom, interval, of, switchMap, timeout } from 'rxjs';
 
 import { CommerceService } from '../../core/commerce/commerce.service';
-import { Cart, DigitalPurchaseOptions, FulfillmentType, QRPaymentResponse, ShippingDetails } from '../../core/models/admin.models';
+import { Cart, DigitalPurchaseOptions, FulfillmentType, QRPaymentResponse, Sale, ShippingDetails } from '../../core/models/admin.models';
 import { CatalogFilterOption } from '../../core/models/api.models';
 import { CatalogService } from '../../core/catalog/catalog.service';
 import { appConfig } from '../../core/config/app-config';
@@ -151,6 +151,29 @@ export interface ConfirmedOrderDetails {
                   }
                 </select>
               </label>
+
+              <!-- DATOS FISCALES PARA EMISIÓN DE FACTURA COMERCIAL ONLINE -->
+              <div style="background: #fbf9f6; border: 1px solid #eae4d8; border-radius: 10px; padding: 14px 16px; margin-top: 12px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 10px; flex-wrap: wrap;">
+                  <div>
+                    <span class="panel-index" style="margin: 0;">DATOS DE FACTURACIÓN FISCAL (CON QR)</span>
+                    <small style="display: block; color: var(--muted); font-size: 0.76rem;">Se emitirá tu Factura Comercial imprimible al confirmar el pago online.</small>
+                  </div>
+                  <button type="button" class="small-button" style="font-size: 0.72rem; padding: 4px 10px;" (click)="setOnlineFinalConsumer()">
+                    Consumidor Final (S/N)
+                  </button>
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1.4fr; gap: 10px;">
+                  <label style="margin: 0;">
+                    <span style="font-size: 0.75rem; font-weight: 600;">NIT o CI Fiscal *</span>
+                    <input type="text" [(ngModel)]="billingNit" placeholder="Ej. 4829104 o 0" style="padding: 8px 10px; font-size: 0.84rem;" />
+                  </label>
+                  <label style="margin: 0;">
+                    <span style="font-size: 0.75rem; font-weight: 600;">Nombre o Razón Social *</span>
+                    <input type="text" [(ngModel)]="billingName" placeholder="Ej. Apellidos / Empresa S.R.L." style="padding: 8px 10px; font-size: 0.84rem;" />
+                  </label>
+                </div>
+              </div>
 
               @if (fulfillmentType === 'DELIVERY') {
                 <div class="checkout-summary delivery-form">
@@ -657,9 +680,9 @@ export interface ConfirmedOrderDetails {
                 </a>
 
                 <div class="ticket-secondary-actions">
-                  <button type="button" class="ticket-util-btn" (click)="printReceipt()">
-                    <span class="material-symbols-outlined">print</span>
-                    <span>Imprimir Comprobante</span>
+                  <button type="button" class="ticket-util-btn" style="background: #1b1c1a; color: #ffffff; border-color: #1b1c1a;" (click)="openOnlineInvoiceModal()">
+                    <span class="material-symbols-outlined">receipt_long</span>
+                    <span>Ver / Imprimir Factura Fiscal con QR</span>
                   </button>
                   <a routerLink="/catalog" class="ticket-util-btn">
                     <span class="material-symbols-outlined">store</span>
@@ -671,11 +694,110 @@ export interface ConfirmedOrderDetails {
           </div>
         </div>
       </div>
+
+      <!-- MODAL DE FACTURA COMERCIAL IMPRIMIBLE PARA COMPRA ONLINE -->
+      @if (showOnlineInvoiceModal) {
+        <div role="dialog" aria-modal="true" aria-label="Factura Comercial Online" style="position: fixed; inset: 0; background: rgba(17, 24, 39, 0.72); z-index: 9999; display: flex; justify-content: center; align-items: center; padding: 16px; overflow-y: auto;">
+          <div style="background: #fff; color: #111827; width: 100%; max-width: 520px; border-radius: 10px; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.45); overflow: hidden; border: 1px solid #d6d3d1;">
+            <div style="background: #1b1c1a; color: #fff; padding: 12px 18px; display: flex; justify-content: space-between; align-items: center;">
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <span class="material-symbols-outlined" style="color: #d4b26f;">receipt_long</span>
+                <strong style="font-size: 0.92rem;">Factura Comercial Electrónica (Compra Online)</strong>
+              </div>
+              <button type="button" style="background: none; border: none; color: #fff; font-size: 1.2rem; cursor: pointer;" (click)="showOnlineInvoiceModal = false">×</button>
+            </div>
+
+            <div style="padding: 20px 24px; font-family: 'Courier New', Courier, monospace; font-size: 0.82rem; line-height: 1.45; color: #111827;">
+              <div style="text-align: center; border-bottom: 1.5px dashed #111827; padding-bottom: 10px; margin-bottom: 10px;">
+                <h3 style="margin: 0; font-size: 1.15rem; font-weight: 900; letter-spacing: 0.04em; text-transform: uppercase;">FASHIONSTORE ATELIER</h3>
+                <div style="font-size: 0.78rem; font-weight: 700;">{{ confirmedOrderDetails.branchName }} · E-COMMERCE</div>
+                <div style="font-size: 0.74rem;">NIT EMISOR: 1029485021 · FACTURA N° {{ confirmedOrderDetails.orderNumber }}</div>
+                <div style="font-size: 0.72rem;">CÓD. CONTROL: {{ onlineControlCode }}</div>
+              </div>
+
+              <div style="border-bottom: 1.5px dashed #111827; padding-bottom: 8px; margin-bottom: 10px; font-size: 0.78rem;">
+                <div><strong>FECHA Y HORA:</strong> {{ confirmedOrderDetails.createdAt | date:'dd/MM/yyyy HH:mm:ss' }}</div>
+                <div><strong>NOMBRE / RAZÓN SOCIAL:</strong> {{ billingName.trim() || 'Sin Nombre (Consumidor Final)' }}</div>
+                <div><strong>NIT / CI / CEX:</strong> {{ billingNit.trim() || '0' }}</div>
+                <div><strong>MODALIDAD DE ENTREGA:</strong> {{ confirmedOrderDetails.fulfillmentType === 'DELIVERY' ? 'Delivery a Domicilio' : 'Retiro en Tienda' }}</div>
+                <div><strong>FORMA DE PAGO:</strong> {{ confirmedOrderDetails.paymentTitle }}</div>
+              </div>
+
+              <table style="width: 100%; border-collapse: collapse; margin-bottom: 10px; font-size: 0.77rem;">
+                <thead>
+                  <tr style="border-bottom: 1px solid #111827; text-align: left;">
+                    <th style="padding: 4px 0;">CANT</th>
+                    <th style="padding: 4px;">DETALLE / PRENDA</th>
+                    <th style="padding: 4px; text-align: right;">P.UNIT</th>
+                    <th style="padding: 4px 0; text-align: right;">SUBTOTAL</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (item of confirmedOrderDetails.items; track $index) {
+                    <tr style="border-bottom: 1px dotted #d6d3d1;">
+                      <td style="padding: 5px 0; font-weight: 700;">{{ item.quantity }}</td>
+                      <td style="padding: 5px 4px;">
+                        <div style="font-weight: 700;">{{ item.product_name }}</div>
+                        @if (item.size_name || item.color_name) {
+                          <div style="font-size: 0.7rem; color: #57534e;">{{ item.size_name }} · {{ item.color_name }}</div>
+                        }
+                      </td>
+                      <td style="padding: 5px 4px; text-align: right;">{{ item.unit_price.toFixed(2) }}</td>
+                      <td style="padding: 5px 0; text-align: right; font-weight: 700;">{{ item.line_total.toFixed(2) }}</td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+
+              <div style="border-top: 1.5px dashed #111827; padding-top: 8px; margin-bottom: 12px; font-size: 0.82rem;">
+                <div style="display: flex; justify-content: space-between;">
+                  <span>SUBTOTAL Bs:</span>
+                  <strong>{{ confirmedOrderDetails.subtotal.toFixed(2) }}</strong>
+                </div>
+                <div style="display: flex; justify-content: space-between;">
+                  <span>DESCUENTO Bs:</span>
+                  <strong>{{ confirmedOrderDetails.discount.toFixed(2) }}</strong>
+                </div>
+                <div style="display: flex; justify-content: space-between; font-size: 0.96rem; margin-top: 4px; padding-top: 4px; border-top: 1px solid #111827;">
+                  <strong>TOTAL PAGADO ONLINE Bs:</strong>
+                  <strong>{{ confirmedOrderDetails.total.toFixed(2) }}</strong>
+                </div>
+              </div>
+
+              <div style="display: flex; align-items: center; gap: 12px; border-top: 1.5px dashed #111827; padding-top: 10px;">
+                <div style="background: #fff; border: 1px solid #111827; padding: 4px; width: 78px; height: 78px; flex-shrink: 0;">
+                  <svg viewBox="0 0 21 21" style="width: 100%; height: 100%; display: block;" aria-label="Código QR de factura online">
+                    @for (cell of getOnlineQrMatrix(); track $index) {
+                      @if (cell.dark) {
+                        <rect [attr.x]="cell.x" [attr.y]="cell.y" width="1" height="1" fill="#111827"></rect>
+                      }
+                    }
+                  </svg>
+                </div>
+                <div style="font-size: 0.68rem; line-height: 1.35; color: #374151;">
+                  <strong>ESTA FACTURA CONTRIBUYE AL DESARROLLO DEL PAÍS.</strong><br>
+                  Ley N° 453: Tienes derecho a recibir información sobre las características y contenidos de los productos que consumes.<br>
+                  <span style="font-family: monospace;">{{ onlineQrPayload }}</span>
+                </div>
+              </div>
+            </div>
+
+            <div style="background: #f5f5f4; padding: 12px 18px; display: flex; justify-content: flex-end; gap: 10px; border-top: 1px solid #e7e5e4;">
+              <button type="button" class="small-button" style="padding: 8px 14px;" (click)="showOnlineInvoiceModal = false">Cerrar</button>
+              <button type="button" class="button button-dark" style="padding: 8px 16px; display: inline-flex; align-items: center; gap: 6px;" (click)="printReceipt()">
+                <span class="material-symbols-outlined" style="font-size: 18px;">print</span>
+                Imprimir Factura / Guardar PDF
+              </button>
+            </div>
+          </div>
+        </div>
+      }
     }
   </section>
   `,
 })
 export class CartComponent implements OnInit, OnDestroy {
+  private readonly stripeCheckoutBuild = 'stripe-real-checkout-20260929';
   private readonly commerce = inject(CommerceService);
   private readonly catalog = inject(CatalogService);
   private readonly changeDetector = inject(ChangeDetectorRef);
@@ -693,6 +815,9 @@ export class CartComponent implements OnInit, OnDestroy {
 
   confirmedOrder: ConfirmedOrderDetails | null = null;
   copiedCode = false;
+  billingNit = '4829104';
+  billingName = 'Cliente Boutique';
+  showOnlineInvoiceModal = false;
 
   get isOrderConfirmed(): boolean {
     return Boolean(this.confirmedOrder || (this.message && this.message.includes('confirmad')));
@@ -812,6 +937,62 @@ export class CartComponent implements OnInit, OnDestroy {
         }, 2500);
       });
     }
+  }
+
+  setOnlineFinalConsumer(): void {
+    this.billingNit = '0';
+    this.billingName = 'Sin Nombre (Consumidor Final)';
+  }
+
+  openOnlineInvoiceModal(): void {
+    this.showOnlineInvoiceModal = true;
+  }
+
+  get onlineControlCode(): string {
+    const code = this.confirmedOrderDetails.orderNumber || 'FS-ONLINE';
+    const hex = Math.abs(code.split('').reduce((a, ch) => (a << 5) - a + ch.charCodeAt(0), 0))
+      .toString(16)
+      .toUpperCase()
+      .padStart(8, 'B');
+    return `${hex.slice(0, 2)}-${hex.slice(2, 4)}-${hex.slice(4, 6)}-${hex.slice(6, 8)}`;
+  }
+
+  get onlineQrPayload(): string {
+    const d = this.confirmedOrderDetails;
+    return `1029485021|${d.orderNumber}|${d.total.toFixed(2)}|${this.onlineControlCode}|${this.billingNit.trim() || '0'}`;
+  }
+
+  getOnlineQrMatrix(): { x: number; y: number; dark: boolean }[] {
+    const payload = this.onlineQrPayload;
+    const size = 21;
+    const cells: { x: number; y: number; dark: boolean }[] = [];
+    const isFinder = (r: number, c: number, top: number, left: number): boolean => {
+      const dr = r - top;
+      const dc = c - left;
+      if (dr < 0 || dr > 6 || dc < 0 || dc > 6) return false;
+      if (dr === 0 || dr === 6 || dc === 0 || dc === 6) return true;
+      if (dr >= 2 && dr <= 4 && dc >= 2 && dc <= 4) return true;
+      return false;
+    };
+    const inFinderZone = (r: number, c: number): boolean =>
+      (r <= 7 && c <= 7) || (r <= 7 && c >= size - 8) || (r >= size - 8 && c <= 7);
+
+    for (let r = 0; r < size; r++) {
+      for (let c = 0; c < size; c++) {
+        let dark = false;
+        if (inFinderZone(r, c)) {
+          dark = isFinder(r, c, 0, 0) || isFinder(r, c, 0, size - 7) || isFinder(r, c, size - 7, 0);
+        } else if (r === 6 || c === 6) {
+          dark = (r + c) % 2 === 0;
+        } else {
+          const idx = r * size + c;
+          const charCode = payload.charCodeAt(idx % Math.max(1, payload.length)) || 70;
+          dark = ((charCode + idx * 13) % 3) !== 0;
+        }
+        cells.push({ x: c, y: r, dark });
+      }
+    }
+    return cells;
   }
 
   printReceipt(): void {
@@ -1250,7 +1431,7 @@ export class CartComponent implements OnInit, OnDestroy {
   }
 
   async payWithStripe(): Promise<void> {
-    if (!this.validateCheckout() || this.paying || !this.stripe || !this.cardElement) return;
+    if (!this.validateCheckout() || this.paying) return;
     this.paying = true;
     this.cardError = '';
     this.message = '';
@@ -1263,24 +1444,56 @@ export class CartComponent implements OnInit, OnDestroy {
       const idempotencyKey = `stripe-web-${sale.id}-${Date.now()}`;
       const intent = await firstValueFrom(this.commerce.stripePaymentIntent(sale.id, idempotencyKey));
 
-      // 3. Confirmar tarjeta con Stripe.js
-      const result = await this.stripe.confirmCardPayment(intent.client_secret, {
-        payment_method: {
-          card: this.cardElement,
-        },
-      });
-
-      if (result.error) {
-        this.cardError = result.error.message || 'Error al procesar la tarjeta.';
-        this.paying = false;
-        this.changeDetector.detectChanges();
+      // The backend uses a sandbox intent when no Stripe secret key is configured.
+      // Mock intents must never be sent to Stripe.js because they are not real
+      // PaymentIntents, even though their shape resembles a client secret.
+      const mockIntentId = intent.client_secret.startsWith('pi_mock_')
+        ? intent.client_secret.split('_secret_', 1)[0]
+        : intent.payment_intent_id.startsWith('pi_mock_')
+          ? intent.payment_intent_id
+          : undefined;
+      if (mockIntentId) {
+        const confirmedSale = await firstValueFrom(this.commerce.confirmStripePayment(mockIntentId));
+        this.finishStripeCheckout(confirmedSale, true);
         return;
       }
 
-      // 4. Confirmar en backend (descontar inventario y vaciar carrito)
-      const piId = result.paymentIntent?.id || intent.payment_intent_id;
-      const confirmedSale = await firstValueFrom(this.commerce.confirmStripePayment(piId));
+      if (!this.stripe || !this.cardElement) {
+        throw new Error('El formulario de tarjeta todavía no está listo.');
+      }
 
+      const confirmation = await this.stripe.confirmCardPayment(
+        intent.client_secret,
+        {
+          payment_method: {
+            card: this.cardElement,
+          },
+        },
+      );
+      if (confirmation.error) {
+        throw new Error(confirmation.error.message || 'Stripe rechazó el pago.');
+      }
+
+      const stripePaymentIntent = confirmation.paymentIntent;
+      if (!stripePaymentIntent ||
+          !['succeeded', 'processing', 'requires_capture'].includes(stripePaymentIntent.status)) {
+        throw new Error('El pago no fue completado por Stripe.');
+      }
+
+      const confirmedSale = await firstValueFrom(
+        this.commerce.confirmStripePayment(
+          intent.payment_intent_id || stripePaymentIntent.id,
+        ),
+      );
+      this.finishStripeCheckout(confirmedSale);
+    } catch (error: any) {
+      this.cardError = error?.error?.detail?.message || error?.message || 'El pago no pudo completarse.';
+      this.paying = false;
+      this.changeDetector.detectChanges();
+    }
+  }
+
+  private finishStripeCheckout(confirmedSale: Sale, sandbox = false): void {
       const branchName = this.getBranchName(this.branchId);
 
       const items: ConfirmedOrderItem[] = (this.cart?.items || []).map((i) => ({
@@ -1311,22 +1524,19 @@ export class CartComponent implements OnInit, OnDestroy {
           unit_price: Number(i.unit_price),
           line_total: Number(i.line_total),
         })),
-        paymentMethodLabel: 'Stripe Internacional',
-        paymentTitle: 'Tarjeta de Crédito / Débito (Stripe)',
-        paymentDescription: 'Procesado exitosamente mediante tarjeta bancaria con autorización instantánea y certificación PCI-DSS Nivel 1.',
+        paymentMethodLabel: sandbox ? 'Sandbox académico' : 'Stripe Internacional',
+        paymentTitle: sandbox ? 'Tarjeta de Crédito / Débito (Sandbox)' : 'Tarjeta de Crédito / Débito (Stripe)',
+        paymentDescription: sandbox
+          ? 'Pago aprobado en el entorno sandbox académico. No se realizó ningún cargo real.'
+          : 'Procesado exitosamente mediante tarjeta bancaria con autorización instantánea y certificación PCI-DSS Nivel 1.',
         fulfillmentType: this.fulfillmentType,
         shippingDetails: this.fulfillmentType === 'DELIVERY' ? { ...this.shippingDetails } : null,
       };
 
-      this.message = `¡Pago exitoso con Stripe! Pedido ${confirmedSale.order_number} confirmado.${this.deliveryMessageSuffix(branchName)}`;
+      this.message = `${sandbox ? '¡Pago sandbox aprobado!' : '¡Pago exitoso con Stripe!'} Pedido ${confirmedSale.order_number} confirmado.${this.deliveryMessageSuffix(branchName)}`;
       this.paying = false;
       this.load(false);
       this.changeDetector.detectChanges();
-    } catch (error: any) {
-      this.cardError = error?.error?.detail?.message || error?.message || 'El pago no pudo completarse.';
-      this.paying = false;
-      this.changeDetector.detectChanges();
-    }
   }
 
   demoCheckout(): void {

@@ -24,9 +24,10 @@ class CatalogItem {
 }
 
 class CatalogPage {
-  const CatalogPage(this.items, this.totalPages);
+  const CatalogPage(this.items, this.totalPages, {this.isOffline = false});
   final List<CatalogItem> items;
   final int totalPages;
+  final bool isOffline;
 }
 
 class CatalogVariant {
@@ -69,10 +70,12 @@ class CatalogDetail extends CatalogItem {
     final imagesList = (json['images'] as List<dynamic>?) ?? [];
     String? primaryUrl;
     if (imagesList.isNotEmpty) {
-      final primary = imagesList.firstWhere(
-        (img) => (img as Map<String, dynamic>)['is_primary'] == true,
-        orElse: () => imagesList.first,
-      ) as Map<String, dynamic>;
+      final primary =
+          imagesList.firstWhere(
+                (img) => (img as Map<String, dynamic>)['is_primary'] == true,
+                orElse: () => imagesList.first,
+              )
+              as Map<String, dynamic>;
       primaryUrl = primary['image_url'] as String?;
     } else {
       primaryUrl = json['image_url'] as String?;

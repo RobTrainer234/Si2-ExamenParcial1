@@ -4,12 +4,13 @@ from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
 import html
+from typing import Any
 from io import BytesIO
+import re
 import xml.etree.ElementTree as ET
 from zipfile import ZIP_DEFLATED, ZipFile, ZipInfo
 
 from openpyxl import Workbook
-from openpyxl.chart import BarChart, Reference
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 
 from reportlab.lib import colors
@@ -182,7 +183,7 @@ def build_excel(snapshot: ReportSnapshot) -> bytes:
     summary_rows = [
         ["Total de Ventas (Órdenes)", sales_cnt, "Órdenes", "Total de compras confirmadas en el período auditado"],
         ["Subtotal Facturado Bruto", subtotal_val, "BOB", "Facturación comercial bruta antes de promociones y descuentos"],
-        ["Descuentos Promocionales", discount_val, "BOB", "Ahorro total otorgado a clientes mediante promociones (CU20)"],
+        ["Descuentos Promocionales", discount_val, "BOB", "Ahorro total otorgado a clientes mediante promociones"],
         ["Total Ingresos Netos", total_val, "BOB", "Ingresos netos consolidados efectivamente liquidados"],
         ["Ticket Promedio por Venta", avg_ticket, "BOB", "Monto promedio facturado por transacción"],
         ["Fecha Desde (Filtro)", date_from_str, "Filtro", "Límite inferior del rango de fechas evaluado"],
@@ -933,3 +934,72 @@ def build_pptx(snapshot: ReportSnapshot) -> bytes:
         _zip_write(package, "ppt/slides/slide2.xml", _slide_text("Sales by branch", branch_lines))
         _zip_write(package, "ppt/slides/slide3.xml", _slide_text("Top products", product_lines))
     return output.getvalue()
+
+
+def _neutralize_excel_value(value: Any) -> Any:
+    if isinstance(value, str) and re.match(r"^\s*[=+\-@]", value):
+        return f"'{value}"
+    return value
+
+
+def export_dynamic_report(
+    title: str,
+    headers: list[str],
+    rows: list[list[Any]],
+    narrative: str = "",
+    format_name: str = "xlsx",
+) -> ExportFile:
+    clean_title = re.sub(r"[^\w\s-]", "", title).strip().replace(" ", "_").lower() or "reporte_ia"
+    filename = f"fashionstore_{clean_title}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.{format_name}"
+    if format_name == "xlsx":
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "Reporte Ejecutivo"
+        ws.append([_neutralize_excel_value(title)])
+        ws.append([_neutralize_excel_value(f"Generado el: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")])
+        if narrative:
+            ws.append([f"Diagnóstico Ejecutivo: {_neutralize_excel_value(narrative)}"])
+        ws.append([])
+        ws.append([_neutralize_excel_value(header) for header in headers])
+        for row in rows:
+            ws.append([_neutralize_excel_value(value) for value in row])
+        buf = BytesIO()
+        wb.save(buf)
+        return ExportFile(
+            content=buf.getvalue(),
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            filename=filename,
+        )
+    elif format_name == "pdf":
+        buf = BytesIO()
+        doc = SimpleDocTemplate(buf, pagesize=letter, rightMargin=36, leftMargin=36, topMargin=36, bottomMargin=36)
+        styles = getSampleStyleSheet()
+        elements = [
+            Paragraph(f"<b>{html.escape(title)}</b>", styles["Title"]),
+            Spacer(1, 10),
+            Paragraph(f"<i>Fecha de generación: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</i>", styles["Italic"]),
+            Spacer(1, 10),
+        ]
+        if narrative:
+            elements.append(Paragraph(f"<b>Diagnóstico Ejecutivo:</b> {html.escape(narrative)}", styles["Normal"]))
+            elements.append(Spacer(1, 14))
+        table_data = [headers] + [[str(c) for c in r] for r in rows]
+        t = Table(table_data)
+        t.setStyle(TableStyle([
+            ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#0F766E')),
+            ('TEXTCOLOR', (0,0), (-1,0), colors.whitesmoke),
+            ('ALIGN', (0,0), (-1,-1), 'LEFT'),
+            ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0,0), (-1,0), 9),
+            ('BOTTOMPADDING', (0,0), (-1,0), 6),
+            ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#CBD5E1')),
+        ]))
+        elements.append(t)
+        doc.build(elements)
+        return ExportFile(
+            content=buf.getvalue(),
+            media_type="application/pdf",
+            filename=filename,
+        )
+    raise ValueError(f"Formato no soportado: {format_name}")
+

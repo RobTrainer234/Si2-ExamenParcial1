@@ -5,7 +5,7 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, joinedload
 
-from app.core.models import Branch, City
+from app.core.models import Branch, City, Subscription, Tenant
 from app.modules.locations.schemas import BranchCreateRequest, BranchUpdateRequest, CityCreateRequest, CityUpdateRequest
 
 
@@ -110,15 +110,59 @@ def _validate_city(db: Session, city_id: int) -> City:
     return city
 
 
+def _ensure_unique_branch(db: Session, tenant_id: int | None, city_id: int, name: str, exclude_branch_id: int | None = None) -> None:
+    pass
+
+
+def _enforce_branch_limit(db: Session, tenant_id: int | None) -> None:
+    if tenant_id is None:
+        return
+    stmt = select(Tenant).where(Tenant.id == tenant_id)
+    bind = db.get_bind()
+    if bind is not None and getattr(bind.dialect, "name", "") == "postgresql":
+        stmt = stmt.with_for_update()
+    tenant = db.scalar(stmt)
+    if tenant is None:
+        return
+
+    active_sub = db.scalar(
+        select(Subscription)
+        .options(joinedload(Subscription.plan))
+        .where(Subscription.tenant_id == tenant_id, Subscription.status == "ACTIVE")
+        .order_by(Subscription.valid_from.desc())
+    )
+    if active_sub is None or active_sub.plan is None:
+        return
+
+    max_branches = active_sub.plan.max_active_branches
+    active_count = db.scalar(
+        select(func.count(Branch.id)).where(
+            Branch.tenant_id == tenant_id,
+            Branch.is_active.is_(True),
+        )
+    ) or 0
+
+    if active_count >= max_branches:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "code": "BRANCH_LIMIT_EXCEEDED",
+                "message": f"Se ha alcanzado el límite de {max_branches} sucursales activas permitido por el plan '{active_sub.plan.name}'.",
+            },
+        )
+
+
 def create_branch(db: Session, data: BranchCreateRequest) -> Branch:
     _validate_city(db, data.city_id)
-    branch = Branch(**data.model_dump())
+    tenant_id = db.info.get("tenant_id")
+    _enforce_branch_limit(db, tenant_id)
+    branch = Branch(tenant_id=tenant_id, **data.model_dump())
     db.add(branch)
     try:
         db.flush()
     except IntegrityError as exc:
         db.rollback()
-        raise _conflict("Ya existe una sucursal con ese nombre en la ciudad indicada.") from exc
+        raise _conflict("No se pudo registrar la sucursal. Verifique los datos ingresados.") from exc
     return get_branch(db, branch.id)
 
 
@@ -126,17 +170,22 @@ def update_branch(db: Session, branch: Branch, data: BranchUpdateRequest) -> Bra
     values = data.model_dump(exclude_unset=True)
     if "city_id" in values:
         _validate_city(db, values["city_id"])
+    target_city_id = values.get("city_id", branch.city_id)
+    target_name = values.get("name", branch.name)
+    _ensure_unique_branch(db, branch.tenant_id, target_city_id, target_name, exclude_branch_id=branch.id)
     for field, value in values.items():
         setattr(branch, field, value)
     try:
         db.flush()
     except IntegrityError as exc:
         db.rollback()
-        raise _conflict("Ya existe una sucursal con ese nombre en la ciudad indicada.") from exc
+        raise _conflict("No se pudo actualizar la sucursal. Verifique los datos ingresados.") from exc
     return get_branch(db, branch.id)
 
 
 def set_branch_active(db: Session, branch: Branch, active: bool) -> Branch:
+    if active and not branch.is_active:
+        _enforce_branch_limit(db, branch.tenant_id)
     branch.is_active = active
     db.flush()
     return get_branch(db, branch.id)

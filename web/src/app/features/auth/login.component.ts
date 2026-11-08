@@ -70,7 +70,10 @@ import { NotificationService } from '../../core/notifications/notification.servi
             {{ loading ? 'Ingresando...' : 'Iniciar sesión' }}
           </button>
         </form>
-        <p class="form-footer">¿Todavía no tienes cuenta? <a routerLink="/register">Regístrate</a></p>
+        <p class="form-footer">¿Todavía no tienes cuenta? <a routerLink="/register">Regístrate como cliente</a></p>
+        <p class="form-footer" style="margin-top: 8px; font-size: 0.76rem;">
+          ¿Buscas usar FashionStore en tu empresa? <a routerLink="/register-company">Prueba gratis por 14 días</a>
+        </p>
       </section>
     </div>
   `,
@@ -171,8 +174,9 @@ export class LoginComponent implements OnInit {
     this.auth.login(email.trim(), password).pipe(finalize(() => { this.loading = false; })).subscribe({
       next: () => {
         this.notifications.success('Inicio de sesión correcto.');
-        void this.router.navigateByUrl('/catalog').catch(() => {
-          this.notifications.error('No se pudo abrir el catálogo.');
+        const targetRoute = this.auth.defaultHomeRoute();
+        void this.router.navigateByUrl(targetRoute).catch(() => {
+          this.notifications.error('No se pudo abrir la pantalla inicial.');
         });
       },
       error: (error: unknown) => {

@@ -34,6 +34,21 @@ describe('AdminService inventory movements', () => {
     request.flush({ ...payload, id: 8 });
   });
 
+  it('exports an assistant report with the Web POST JSON contract', () => {
+    const payload = { prompt: 'Productos vendidos', branch_id: 7 };
+    let result: Blob | undefined;
+
+    service.exportAssistantReport('pdf', payload).subscribe((blob) => (result = blob));
+
+    const request = http.expectOne('/api/v1/reports/assistant/export/pdf');
+    expect(request.request.method).toBe('POST');
+    expect(request.request.body).toEqual(payload);
+    request.flush(new Blob(['assistant-report'], { type: 'application/pdf' }));
+
+    expect(result).toBeInstanceOf(Blob);
+    expect(result?.type).toBe('application/pdf');
+  });
+
   it('loads cycle 3 dashboard with filters and promotions', () => {
     service.dashboard({ branch_id: 3, start_date: '2030-01-01', end_date: '2030-01-31' }).subscribe((dashboard) => expect(dashboard.revenue.sales_count).toBe(2));
     const dashboard = http.expectOne((item) => item.url === '/api/v1/reports/dashboard');
@@ -60,5 +75,27 @@ describe('AdminService inventory movements', () => {
     expect(products.request.method).toBe('POST');
     expect(products.request.body).toEqual({ product_ids: [1, 2] });
     products.flush({ id: 7, name: 'Promo', description: null, discount_type: 'PERCENT', discount_value: 10, starts_at: '2030-01-01', ends_at: '2030-01-31', is_active: true, product_ids: [1, 2] });
+  });
+
+  it('CU13-8b: lists quarantine items with optional status filter and submits inspection decisions', () => {
+    service.quarantineList('PENDING', 1, 25).subscribe((page) => expect(page.items.length).toBe(1));
+    const listReq = http.expectOne((item) => item.url === '/api/v1/inventory/quarantine');
+    expect(listReq.request.method).toBe('GET');
+    expect(listReq.request.params.get('status')).toBe('PENDING');
+    expect(listReq.request.params.get('page')).toBe('1');
+    expect(listReq.request.params.get('page_size')).toBe('25');
+    listReq.flush({
+      items: [{ id: 12, tenant_id: 1, branch_id: 3, inventory_id: 4, product_variant_id: 9, exchange_item_id: 2, quantity: 1, status: 'PENDING', inspected_by: null, inspection_reason: null, inspected_at: null, created_at: '2030-01-01T00:00:00Z' }],
+      page: 1,
+      page_size: 25,
+      total: 1,
+      total_pages: 1,
+    });
+
+    service.inspectQuarantine(12, { decision: 'RELEASE', reason: 'Prenda intacta con etiqueta' }).subscribe((item) => expect(item.status).toBe('RELEASED'));
+    const inspectReq = http.expectOne('/api/v1/inventory/quarantine/12/inspection');
+    expect(inspectReq.request.method).toBe('POST');
+    expect(inspectReq.request.body).toEqual({ decision: 'RELEASE', reason: 'Prenda intacta con etiqueta' });
+    inspectReq.flush({ id: 12, tenant_id: 1, branch_id: 3, inventory_id: 4, product_variant_id: 9, exchange_item_id: 2, quantity: 1, status: 'RELEASED', inspected_by: 5, inspection_reason: 'Prenda intacta con etiqueta', inspected_at: '2030-01-01T01:00:00Z', created_at: '2030-01-01T00:00:00Z' });
   });
 });

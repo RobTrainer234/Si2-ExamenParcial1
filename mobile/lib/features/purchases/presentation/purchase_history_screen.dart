@@ -90,7 +90,9 @@ class _PurchaseHistoryScreenState extends ConsumerState<PurchaseHistoryScreen> {
             child: ListTile(
               minVerticalPadding: 16,
               title: Text(sale['order_number'] as String),
-              subtitle: Text('${sale['channel']} · ${sale['status']} · ${_fulfillmentSummary(sale)}'),
+              subtitle: Text(
+                '${sale['channel']} · ${sale['status']} · ${_fulfillmentSummary(sale)}',
+              ),
               trailing: Text(
                 '${sale['total']} BOB',
                 style: const TextStyle(fontWeight: FontWeight.bold),

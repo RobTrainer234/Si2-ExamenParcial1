@@ -1,5 +1,6 @@
-import { Component, HostListener, OnDestroy, inject } from '@angular/core';
+import { Component, HostListener, OnDestroy, inject, signal } from '@angular/core';
 import { NavigationStart, Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+import { SwUpdate } from '@angular/service-worker';
 import { Subscription, filter } from 'rxjs';
 
 import { AdminService } from './core/admin/admin.service';
@@ -19,39 +20,72 @@ import { AiChatWidgetComponent } from './features/chat/ai-chat-widget.component'
       <div class="header-container">
         <!-- Izquierda: Brand Boutique + Botón Explorar Colecciones -->
         <div class="header-left">
-          <a class="brand" routerLink="/catalog" (click)="closeAllMenus()">
+          <a class="brand" routerLink="/" (click)="closeAllMenus()">
             <span class="brand-monogram">F</span>
             <div class="brand-text">
               <strong class="brand-name">FashionStore</strong>
-              <small class="brand-tagline">Atelier & Boutique</small>
+              <small class="brand-tagline">{{ isLandingContext ? 'Plataforma SaaS · Indumentaria' : (auth.currentUser()?.tenant?.name || 'Atelier & Boutique') }}</small>
             </div>
           </a>
-          <button class="catalog-trigger-btn" type="button" (click)="toggleMenu()" aria-label="Abrir catálogo completo">
-            <span class="material-symbols-outlined">{{ menuOpen ? 'close' : 'apps' }}</span>
-            <span>Colecciones</span>
-          </button>
+          @if (!isLandingContext && auth.currentUser()?.role !== 'PLATFORM_ADMIN') {
+            <button class="catalog-trigger-btn" type="button" (click)="toggleMenu()" aria-label="Abrir catálogo completo">
+              <span class="material-symbols-outlined">{{ menuOpen ? 'close' : 'apps' }}</span>
+              <span>Colecciones</span>
+            </button>
+          }
         </div>
 
-        <!-- Centro: Enlaces directos de navegación para clientes -->
-        <nav class="header-nav-center" aria-label="Navegación principal">
-          <a routerLink="/catalog" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: false }">
-            <span class="material-symbols-outlined">diamond</span>
-            <span>Catálogo</span>
-          </a>
-          <a routerLink="/fitting-bag" routerLinkActive="active">
-            <span class="material-symbols-outlined">checkroom</span>
-            <span>Probador Virtual</span>
-          </a>
-          @if (auth.isAuthenticated() && auth.currentUser()?.role === 'CLIENT') {
-            <a routerLink="/my-reservations" routerLinkActive="active">
-              <span class="material-symbols-outlined">calendar_month</span>
-              <span>Mis Reservas</span>
+        <!-- Centro: Enlaces directos de navegación contextual -->
+        @if (isLandingContext) {
+          <nav class="header-nav-center" aria-label="Navegación de plataforma SaaS">
+            <a href="#beneficios">
+              <span class="material-symbols-outlined">verified</span>
+              <span>Beneficios</span>
             </a>
-          }
-        </nav>
+            <a href="#planes">
+              <span class="material-symbols-outlined">workspace_premium</span>
+              <span>Planes y Prueba</span>
+            </a>
+            <a routerLink="/catalog">
+              <span class="material-symbols-outlined">diamond</span>
+              <span>Catálogo Demo</span>
+            </a>
+          </nav>
+        } @else {
+          <nav class="header-nav-center" aria-label="Navegación principal">
+            <a routerLink="/catalog" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: false }">
+              <span class="material-symbols-outlined">diamond</span>
+              <span>Catálogo</span>
+            </a>
+            @if (auth.currentUser()?.role !== 'PLATFORM_ADMIN') {
+              <a routerLink="/fitting-bag" routerLinkActive="active">
+                <span class="material-symbols-outlined">checkroom</span>
+                <span>Probador Virtual</span>
+              </a>
+            }
+            @if (auth.isAuthenticated() && auth.currentUser()?.role === 'CLIENT') {
+              <a routerLink="/my-reservations" routerLinkActive="active">
+                <span class="material-symbols-outlined">calendar_month</span>
+                <span>Mis Reservas</span>
+              </a>
+            }
+            @if (auth.currentUser()?.role === 'PLATFORM_ADMIN') {
+              <a routerLink="/platform" routerLinkActive="active">
+                <span class="material-symbols-outlined">domain</span>
+                <span>Consola SaaS</span>
+              </a>
+            }
+          </nav>
+        }
 
         <!-- Derecha: Gestión operativa + Carrito + Usuario -->
         <div class="header-right">
+          @if (auth.currentUser()?.role === 'PLATFORM_ADMIN') {
+            <a routerLink="/platform" class="management-trigger-btn" routerLinkActive="active">
+              <span class="material-symbols-outlined">admin_panel_settings</span>
+              <span>Gobernanza SaaS</span>
+            </a>
+          }
           @if (isStaffOrAdmin) {
             <div class="management-dropdown-wrapper">
               <button 
@@ -170,12 +204,20 @@ import { AiChatWidgetComponent } from './features/chat/ai-chat-widget.component'
             </div>
           }
 
-          <!-- Carrito de compras -->
-          <a routerLink="/cart" class="header-cart-btn" aria-label="Ver carrito" (click)="closeAllMenus()">
-            <span class="material-symbols-outlined">shopping_bag</span>
-            @if (cartItemsCount > 0) {
-              <span class="cart-badge">{{ cartItemsCount }}</span>
-            }
+          <!-- Carrito de compras (solo contexto tienda/cliente) -->
+          @if (!isLandingContext && auth.currentUser()?.role !== 'PLATFORM_ADMIN') {
+            <a routerLink="/cart" class="header-cart-btn" aria-label="Ver carrito" (click)="closeAllMenus()">
+              <span class="material-symbols-outlined">shopping_bag</span>
+              @if (cartItemsCount > 0) {
+                <span class="cart-badge">{{ cartItemsCount }}</span>
+              }
+            </a>
+          }
+
+          <!-- Semáforo de Conectividad Online/Offline -->
+          <a routerLink="/offline-transactions" class="header-status-indicator" [class.status-offline]="!isOnline()" [title]="isOnline() ? 'Sistema conectado al servidor (Online)' : 'Sistema sin conexión a internet (Offline). Haz clic para ver operaciones pendientes.'">
+            <span class="status-indicator-dot"></span>
+            <span class="status-indicator-label">{{ isOnline() ? 'Online' : 'Offline' }}</span>
           </a>
 
           <!-- Perfil de usuario o Login -->
@@ -201,9 +243,16 @@ import { AiChatWidgetComponent } from './features/chat/ai-chat-widget.component'
                   <div class="user-dropdown-header">
                     <strong>{{ auth.currentUser()?.first_name }} {{ auth.currentUser()?.last_name }}</strong>
                     <small>{{ auth.currentUser()?.email }}</small>
+                    @if (auth.currentUser()?.tenant?.name) {
+                      <small>{{ auth.currentUser()?.tenant?.name }}</small>
+                    }
                     <span class="role-tag">{{ roleBadgeText }}</span>
                   </div>
                   <div class="user-dropdown-actions">
+                    <a [routerLink]="auth.defaultHomeRoute()" (click)="closeAllMenus()" class="dropdown-action-link">
+                      <span class="material-symbols-outlined">space_dashboard</span>
+                      <span>Ir a mi espacio principal</span>
+                    </a>
                     @if (auth.currentUser()?.role === 'CLIENT') {
                       <a routerLink="/my-reservations" (click)="closeAllMenus()" class="dropdown-action-link">
                         <span class="material-symbols-outlined">history</span>
@@ -221,7 +270,12 @@ import { AiChatWidgetComponent } from './features/chat/ai-chat-widget.component'
           } @else {
             <div class="auth-buttons">
               <a routerLink="/login" class="login-link" (click)="closeAllMenus()">Ingresar</a>
-              <a routerLink="/register" class="register-cta" (click)="closeAllMenus()">Crear cuenta</a>
+              @if (isLandingContext) {
+                <a routerLink="/register-company" class="register-cta" (click)="closeAllMenus()">Probar 14 días</a>
+              } @else {
+                <a routerLink="/register" class="login-link" (click)="closeAllMenus()">Cuenta cliente</a>
+                <a routerLink="/register-company" class="register-cta" (click)="closeAllMenus()">Prueba empresas</a>
+              }
             </div>
           }
         </div>
@@ -419,14 +473,31 @@ export class AppComponent implements OnDestroy {
   private previousPendingCount = 0;
 
   navigation: CatalogNavigation | null = null;
+  private readonly swUpdate = inject(SwUpdate, { optional: true });
+
   menuOpen = false;
   managementDropdownOpen = false;
   userDropdownOpen = false;
   menuAudience: AudienceCode | null = null;
   pendingReservationsCount = 0;
   cartItemsCount = 0;
+  readonly isOnline = signal<boolean>(typeof navigator !== 'undefined' ? navigator.onLine : true);
 
   constructor() {
+    if (typeof window !== 'undefined') {
+      window.addEventListener('online', () => this.isOnline.set(true));
+      window.addEventListener('offline', () => this.isOnline.set(false));
+    }
+
+    if (this.swUpdate?.isEnabled) {
+      this.swUpdate.versionUpdates.subscribe((evt) => {
+        if (evt.type === 'VERSION_READY') {
+          this.swUpdate?.activateUpdate().then(() => document.location.reload());
+        }
+      });
+      this.swUpdate.checkForUpdate().catch(() => undefined);
+    }
+
     this.catalog.navigation().subscribe({
       next: (navigation) => {
         this.navigation = navigation;
@@ -504,11 +575,19 @@ export class AppComponent implements OnDestroy {
     return (first + last).toUpperCase() || 'U';
   }
 
+  get isLandingContext(): boolean {
+    const path = (this.router.url || '/').split('?')[0].split('#')[0];
+    return path === '/' || path === '' || path === '/register-company';
+  }
+
   get roleBadgeText(): string {
     const role = this.auth.currentUser()?.role;
     switch (role) {
+      case 'PLATFORM_ADMIN': return 'Superadmin SaaS';
       case 'ADMIN': return 'Administrador';
-      case 'OPERATOR': return 'Operador';
+      case 'BRANCH_MANAGER':
+      case 'OPERATOR': return 'Encargado';
+      case 'CASHIER':
       case 'SELLER': return 'Cajero';
       case 'CLIENT': return 'Cliente';
       case 'SUPPLIER': return 'Proveedor';

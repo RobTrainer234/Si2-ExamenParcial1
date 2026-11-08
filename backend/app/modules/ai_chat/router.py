@@ -4,8 +4,9 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.modules.ai_chat import service
 from app.modules.ai_chat.schemas import ChatRequest, ChatResponse
+from app.modules.auth.dependencies import bind_optional_tenant_context
 
-router = APIRouter(prefix="/ai", tags=["ai-chat"])
+router = APIRouter(prefix="/ai", tags=["ai-chat"], dependencies=[Depends(bind_optional_tenant_context)])
 
 
 @router.post("/chat", response_model=ChatResponse)

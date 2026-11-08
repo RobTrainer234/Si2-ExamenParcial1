@@ -16,6 +16,7 @@ import { FittingBagService } from '../../core/reservations/fitting-bag.service';
     @if (loading) { <p class="loading page-message">Cargando producto...</p> }
     @if (error) { <p class="error page-message">No se pudo encontrar el producto.</p> }
     @if (product) {
+      @if (offlineDetail) { <p class="offline-warning-text" role="status">Disponibilidad local de {{ offlineBranchName }} · datos sincronizados que pueden estar desactualizados.</p> }
       <a class="back-link" routerLink="/catalog"><span class="material-symbols-outlined">arrow_back</span> Volver al catálogo</a>
       <section class="detail-layout">
         <div class="detail-gallery-wrap">
@@ -49,6 +50,7 @@ import { FittingBagService } from '../../core/reservations/fitting-bag.service';
             <button class="button button-light availability-button" [disabled]="!selectedVariant || !selectedVariant.available || addingToCart" (click)="addToCart()">{{ addingToCart ? 'Agregando...' : 'Agregar al carrito' }}</button>
             <button class="button button-light availability-button" [disabled]="!product || startingFitting" (click)="startVirtualFitting()">{{ startingFitting ? 'Abriendo vestidor...' : 'Probar en vestidor virtual' }}</button>
             @if (cartMessage) { <p class="cart-feedback" [class.cart-feedback-error]="cartMessageError">{{ cartMessage }}</p> }
+            @if (offlineAvailability) { <p class="offline-warning-text" role="status">Disponibilidad local de {{ offlineBranchName }} · datos sincronizados que pueden estar desactualizados.</p> }
             @if (availability.length > 0) { <div class="availability-list"><div class="availability-heading"><h3>Disponibilidad en tiendas</h3><a class="small-button" routerLink="/fitting-bag">Ver bolsa de probador ({{ fittingBag.count() }})</a></div><p class="muted">Agregá esta variante a la bolsa y confirmá una sola reserva con todas tus prendas.</p>@for (branch of availability; track branch.branch_id) { <div class="branch-row"><div><strong>{{ branch.branch_name }}</strong><small>{{ branch.city_name }} · {{ branch.address }}</small></div><span [class.in-stock]="branch.available">{{ branch.available ? branch.stock + ' disponibles' : 'Agotado' }}</span>@if (branch.available) { <button class="small-button" type="button" (click)="addToFittingBag()">Agregar a bolsa</button> }</div> }</div> }
             @if (fittingBagMessage) { <div class="cart-feedback fitting-bag-added" role="status"><span>{{ fittingBagMessage }}</span><a class="small-button" routerLink="/catalog">Seguir explorando</a><a class="small-button" routerLink="/fitting-bag">Ver bolsa</a></div> }
             @if (checked && availability.length === 0) { <p class="muted">No hay existencias registradas para esta combinación.</p> }
@@ -80,12 +82,15 @@ export class ProductDetailComponent {
   cartMessageError = false;
   startingFitting = false;
   fittingBagMessage = '';
+  offlineDetail = false;
+  offlineAvailability = false;
+  offlineBranchName = 'la sucursal sincronizada';
 
   readonly placeholder = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="600" height="700" viewBox="0 0 600 700"%3E%3Crect width="600" height="700" fill="%23eee9e1"/%3E%3Ctext x="300" y="350" text-anchor="middle" fill="%2390887e" font-size="24"%3EFashionStore%3C/text%3E%3C/svg%3E';
 
   constructor() {
     const id = Number(this.route.snapshot.paramMap.get('id'));
-    this.catalog.detail(id).pipe(finalize(() => { this.loading = false; this.changeDetector.detectChanges(); })).subscribe({ next: (product) => { this.product = product; this.selectedImage = product.images.find((image) => image.is_primary)?.image_url || product.images[0]?.image_url || ''; this.selectedVariant = product.variants.find((variant) => variant.available) || product.variants[0] || null; this.selectedColorId = this.selectedVariant?.color_id || 0; }, error: () => { this.error = true; } });
+    this.catalog.detail(id).pipe(finalize(() => { this.loading = false; this.changeDetector.detectChanges(); })).subscribe({ next: (product) => { this.product = product; this.offlineDetail = this.catalog.lastDetailWasOffline(); this.offlineBranchName = this.catalog.lastOfflineBranchName(); this.selectedImage = product.images.find((image) => image.is_primary)?.image_url || product.images[0]?.image_url || ''; this.selectedVariant = product.variants.find((variant) => variant.available) || product.variants[0] || null; this.selectedColorId = this.selectedVariant?.color_id || 0; }, error: () => { this.error = true; } });
   }
 
   get selectedImageIndex(): number { return this.product?.images.findIndex((image) => image.image_url === this.selectedImage) ?? 0; }
@@ -107,7 +112,7 @@ export class ProductDetailComponent {
     this.catalog.availability(this.product.id, this.selectedVariant.size_id, this.selectedVariant.color_id).pipe(
       timeout({ each: 10000 }),
       finalize(() => { this.loadingAvailability = false; this.changeDetector.detectChanges(); }),
-    ).subscribe({ next: (items) => { this.availability = items; this.checked = true; }, error: () => { this.availability = []; this.checked = true; this.availabilityError = true; } });
+    ).subscribe({ next: (items) => { this.availability = items; this.offlineAvailability = this.catalog.lastAvailabilityWasOffline(); this.checked = true; }, error: () => { this.availability = []; this.checked = true; this.availabilityError = true; } });
   }
 
    addToCart(): void {

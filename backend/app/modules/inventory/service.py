@@ -1,3 +1,4 @@
+from datetime import UTC, datetime
 from math import ceil
 
 from fastapi import HTTPException, status
@@ -6,7 +7,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, joinedload
 
 from app.core.audit import record_audit
-from app.core.models import Branch, Inventory, InventoryMovement, ProductVariant, User
+from app.core.models import Branch, Inventory, InventoryMovement, InventoryQuarantine, ProductVariant, User
 from app.modules.inventory.schemas import InventoryCreateRequest, InventoryMovementCreateRequest, InventoryUpdateRequest
 
 
@@ -209,6 +210,72 @@ def list_movements(
         "total": total,
         "total_pages": ceil(total / page_size) if total else 0,
     }
+
+
+def serialize_quarantine(item: InventoryQuarantine) -> dict[str, object]:
+    return {
+        "id": item.id,
+        "tenant_id": item.tenant_id,
+        "branch_id": item.branch_id,
+        "inventory_id": item.inventory_id,
+        "product_variant_id": item.product_variant_id,
+        "exchange_item_id": item.exchange_item_id,
+        "quantity": item.quantity,
+        "status": item.status,
+        "inspected_by": item.inspected_by,
+        "inspection_reason": item.inspection_reason,
+        "inspected_at": item.inspected_at,
+        "created_at": item.created_at,
+    }
+
+
+def list_quarantine(db: Session, page: int, page_size: int, status_filter: str | None, tenant_id: int, allowed_branch_ids: set[int] | None = None) -> dict[str, object]:
+    statement = select(InventoryQuarantine).where(InventoryQuarantine.tenant_id == tenant_id).order_by(InventoryQuarantine.id.desc())
+    count_statement = select(func.count(InventoryQuarantine.id)).where(InventoryQuarantine.tenant_id == tenant_id)
+    if status_filter is not None:
+        statement = statement.where(InventoryQuarantine.status == status_filter)
+        count_statement = count_statement.where(InventoryQuarantine.status == status_filter)
+    if allowed_branch_ids is not None:
+        statement = statement.where(InventoryQuarantine.branch_id.in_(allowed_branch_ids))
+        count_statement = count_statement.where(InventoryQuarantine.branch_id.in_(allowed_branch_ids))
+    total = db.scalar(count_statement) or 0
+    items = db.scalars(statement.offset((page - 1) * page_size).limit(page_size)).all()
+    return {"items": [serialize_quarantine(item) for item in items], "page": page, "page_size": page_size, "total": total, "total_pages": ceil(total / page_size) if total else 0}
+
+
+def get_locked_quarantine(db: Session, quarantine_id: int, tenant_id: int) -> InventoryQuarantine:
+    item = db.scalar(select(InventoryQuarantine).where(InventoryQuarantine.id == quarantine_id, InventoryQuarantine.tenant_id == tenant_id).with_for_update())
+    if item is None:
+        raise _error("QUARANTINE_NOT_FOUND", "Registro de cuarentena no encontrado.", status.HTTP_404_NOT_FOUND)
+    return item
+
+
+def inspect_quarantine(db: Session, quarantine: InventoryQuarantine, inventory: Inventory, decision: str, reason: str, user: User) -> InventoryQuarantine:
+    if decision not in {"RELEASE", "REJECT"}:
+        raise _error("INVALID_INSPECTION_DECISION", "La decisión debe ser RELEASE o REJECT.", status.HTTP_400_BAD_REQUEST)
+    clean_reason = reason.strip()
+    if len(clean_reason) < 2:
+        raise _error("INVALID_REASON", "El motivo debe contener al menos dos caracteres.", status.HTTP_400_BAD_REQUEST)
+    if quarantine.status != "PENDING":
+        if quarantine.status == ("RELEASED" if decision == "RELEASE" else "REJECTED"):
+            return quarantine
+        raise _error("QUARANTINE_ALREADY_INSPECTED", "La cuarentena ya fue resuelta con una decisión distinta.", status.HTTP_409_CONFLICT)
+    old_status = quarantine.status
+    now = datetime.now(UTC)
+    quarantine.status = "RELEASED" if decision == "RELEASE" else "REJECTED"
+    quarantine.inspected_by = user.id
+    quarantine.inspection_reason = clean_reason
+    quarantine.inspected_at = now
+    if decision == "RELEASE":
+        before = inventory.stock_quantity
+        inventory.stock_quantity += quarantine.quantity
+        movement = InventoryMovement(tenant_id=user.tenant_id, inventory_id=inventory.id, movement_type="IN", quantity=quarantine.quantity, stock_before=before, stock_after=inventory.stock_quantity, reason=clean_reason, reference_type="inventory_quarantine", reference_id=quarantine.id, created_by=user.id)
+        db.add(movement)
+        db.flush()
+        record_audit(db, user, "CREATE", "inventory_movement", movement.id, "Prendas liberadas de cuarentena.", new_values={"quarantine_id": quarantine.id, "quantity": quarantine.quantity, "movement_type": "IN"})
+    record_audit(db, user, "UPDATE", "inventory_quarantine", quarantine.id, "Inspección de prenda en cuarentena.", old_values={"status": old_status}, new_values={"status": quarantine.status, "decision": decision, "reason": clean_reason})
+    db.flush()
+    return quarantine
 
 
 def serialize_movement(movement: InventoryMovement) -> dict[str, object]:

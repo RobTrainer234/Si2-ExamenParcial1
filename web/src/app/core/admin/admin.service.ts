@@ -3,7 +3,41 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
 
 import { appConfig } from '../config/app-config';
-import { AdminUser, Branch, Category, City, Collection, Color, DashboardFilters, DashboardReport, ImageInput, InventoryMovement, InventoryRow, Page, ProductDetail, ProductSummary, Promotion, ReportAssistantRequest, ReportAssistantResponse, ReportExportFormat, Reservation, Season, Size, Supplier, SupplyOffer } from '../models/admin.models';
+import {
+  AdminUser,
+  Branch,
+  Category,
+  City,
+  Collection,
+  Color,
+  CustomerSegmentationResponse,
+  DashboardFilters,
+  DashboardReport,
+  DemandForecastResponse,
+  ImageInput,
+  InventoryMovement,
+  InventoryRow,
+  MLTrainingResponse,
+  Page,
+  ProductDetail,
+  ProductSummary,
+  Promotion,
+  QuarantineInspectionInput,
+  QuarantineItem,
+  QuarantineStatus,
+  ReportAssistantRequest,
+  ReportAssistantResponse,
+  ReportExportFormat,
+  Reservation,
+  Season,
+  Size,
+  SubscriptionCurrentStatus,
+  SubscriptionPlan,
+  SubscriptionRecord,
+  Supplier,
+  SupplyOffer,
+  PlatformTenant,
+} from '../models/admin.models';
 
 @Injectable({ providedIn: 'root' })
 export class AdminService {
@@ -84,6 +118,14 @@ export class AdminService {
   updateInventory(id: number, stock_quantity: number): Observable<InventoryRow> { return this.http.patch<InventoryRow>(`${this.base}/inventory/${id}`, { stock_quantity }); }
   inventoryMovements(inventoryId?: number, movementType?: string, page = 1, pageSize = 100): Observable<Page<InventoryMovement>> { let params = new HttpParams().set('page', page).set('page_size', pageSize); if (inventoryId) params = params.set('inventory_id', inventoryId); if (movementType) params = params.set('movement_type', movementType); return this.http.get<Page<InventoryMovement>>(`${this.base}/inventory/movements`, { params }); }
   createInventoryMovement(data: unknown): Observable<InventoryMovement> { return this.http.post<InventoryMovement>(`${this.base}/inventory/movements`, data); }
+  quarantineList(status?: QuarantineStatus | '', page = 1, pageSize = 25): Observable<Page<QuarantineItem>> {
+    let params = new HttpParams().set('page', page).set('page_size', pageSize);
+    if (status) params = params.set('status', status);
+    return this.http.get<Page<QuarantineItem>>(`${this.base}/inventory/quarantine`, { params });
+  }
+  inspectQuarantine(quarantineId: number, data: QuarantineInspectionInput): Observable<QuarantineItem> {
+    return this.http.post<QuarantineItem>(`${this.base}/inventory/quarantine/${quarantineId}/inspection`, data);
+  }
   reservations(branchId: number, status?: string): Observable<Page<Reservation>> { let params = new HttpParams().set('page', 1).set('page_size', 100).set('branch_id', branchId); if (status) params = params.set('status', status); return this.http.get<Page<Reservation>>(`${this.base}/reservations/branch`, { params }); }
   reservationBranches(): Observable<Page<Branch>> { return this.http.get<Page<Branch>>(`${this.base}/reservations/branches`); }
   updateReservationStatus(id: number, reservationStatus: string): Observable<Reservation> { return this.http.patch<Reservation>(`${this.base}/reservations/${id}/status`, { status: reservationStatus }); }
@@ -105,8 +147,116 @@ export class AdminService {
     return this.http.get(`${this.base}/reports/export/${format}`, { params: this.reportParams(filters), responseType: 'blob' });
   }
   reportAssistant(request: ReportAssistantRequest): Observable<ReportAssistantResponse> { return this.http.post<ReportAssistantResponse>(`${this.base}/reports/assistant`, request); }
+  exportAssistantReport(format: 'xlsx' | 'pdf', request: ReportAssistantRequest): Observable<Blob> {
+    return this.http.post(`${this.base}/reports/assistant/export/${format}`, request, { responseType: 'blob' });
+  }
+  getDemandForecast(branchId?: number, weeksAhead = 6): Observable<DemandForecastResponse> {
+    let params = new HttpParams().set('weeks_ahead', weeksAhead);
+    if (branchId) params = params.set('branch_id', branchId);
+    return this.http.get<DemandForecastResponse>(`${this.base}/reports/ml/demand-forecast`, { params });
+  }
+  getCustomerSegments(nClusters = 4): Observable<CustomerSegmentationResponse> {
+    const params = new HttpParams().set('n_clusters', nClusters);
+    return this.http.get<CustomerSegmentationResponse>(`${this.base}/reports/ml/customer-segments`, { params });
+  }
+  trainMLModels(): Observable<MLTrainingResponse> {
+    return this.http.post<MLTrainingResponse>(`${this.base}/reports/ml/train`, {});
+  }
+  transcribeAudio(audioBase64: string, mimeType = 'audio/webm'): Observable<{ transcription: string; status: string }> {
+    return this.http.post<{ transcription: string; status: string }>(`${this.base}/reports/transcribe-audio`, {
+      audio_base64: audioBase64,
+      mime_type: mimeType,
+    });
+  }
   addImage(productId: number, data: ImageInput): Observable<ProductDetail> { return this.http.post<ProductDetail>(`${this.base}/products/${productId}/images`, data); }
   uploadImage(productId: number, file: File, isPrimary: boolean, sortOrder: number): Observable<ProductDetail> { const data = new FormData(); data.append('file', file); data.append('is_primary', String(isPrimary)); data.append('sort_order', String(sortOrder)); return this.http.post<ProductDetail>(`${this.base}/products/${productId}/images/upload`, data); }
   updateImage(productId: number, imageId: number, data: { is_primary?: boolean; sort_order?: number }): Observable<ProductDetail> { return this.http.patch<ProductDetail>(`${this.base}/products/${productId}/images/${imageId}`, data); }
   deleteImage(productId: number, imageId: number): Observable<ProductDetail> { return this.http.delete<ProductDetail>(`${this.base}/products/${productId}/images/${imageId}`); }
+
+  // --- SaaS Plans & Subscriptions (Tenant & Public) ---
+  publicPlans(): Observable<{ items: SubscriptionPlan[]; total: number }> {
+    return this.http.get<{ items: SubscriptionPlan[]; total: number }>(`${this.base}/plans`);
+  }
+  currentSubscription(): Observable<SubscriptionCurrentStatus> {
+    return this.http.get<SubscriptionCurrentStatus>(`${this.base}/subscriptions/current`);
+  }
+  verifyCompanyEmail(): Observable<SubscriptionCurrentStatus> {
+    return this.http.post<SubscriptionCurrentStatus>(`${this.base}/subscriptions/verify-email`, {});
+  }
+  requestReactivation(plan_code: string, notes?: string): Observable<SubscriptionCurrentStatus> {
+    return this.http.post<SubscriptionCurrentStatus>(`${this.base}/subscriptions/reactivation-request`, { plan_code, notes });
+  }
+  cancelSubscription(data: { reason: string; feedback?: string; immediate?: boolean }): Observable<SubscriptionCurrentStatus> {
+    return this.http.post<SubscriptionCurrentStatus>(`${this.base}/subscriptions/cancel`, data);
+  }
+  resumeTenantSubscription(): Observable<SubscriptionCurrentStatus> {
+    return this.http.post<SubscriptionCurrentStatus>(`${this.base}/subscriptions/resume`, {});
+  }
+  exportCompanyData(): Observable<unknown> {
+    return this.http.get<unknown>(`${this.base}/subscriptions/export`);
+  }
+
+  // --- SaaS Platform Admin (CU-01, CU-02, CU-03) ---
+  platformPlans(): Observable<{ items: SubscriptionPlan[]; total: number }> {
+    return this.http.get<{ items: SubscriptionPlan[]; total: number }>(`${this.base}/platform/plans`);
+  }
+  createPlatformPlan(data: {
+    code: string;
+    name: string;
+    price_monthly?: number;
+    price_annual?: number;
+    currency?: string;
+    max_active_branches: number;
+    generative_reports_enabled: boolean;
+    is_active: boolean;
+  }): Observable<SubscriptionPlan> {
+    return this.http.post<SubscriptionPlan>(`${this.base}/platform/plans`, data);
+  }
+  updatePlatformPlan(
+    planId: number,
+    data: Partial<{
+      name: string;
+      price_monthly: number;
+      price_annual: number;
+      currency: string;
+      max_active_branches: number;
+      generative_reports_enabled: boolean;
+      is_active: boolean;
+    }>
+  ): Observable<SubscriptionPlan> {
+    return this.http.patch<SubscriptionPlan>(`${this.base}/platform/plans/${planId}`, data);
+  }
+  platformTenants(page = 1, pageSize = 50): Observable<{ items: PlatformTenant[]; total: number }> {
+    const params = new HttpParams().set('page', page).set('page_size', pageSize);
+    return this.http.get<{ items: PlatformTenant[]; total: number }>(`${this.base}/platform/tenants`, { params });
+  }
+  createPlatformTenant(data: {
+    name: string;
+    plan_code: string;
+    admin_email?: string;
+    admin_password?: string;
+    admin_first_name?: string;
+    admin_last_name?: string;
+    admin_phone?: string;
+  }): Observable<PlatformTenant> {
+    return this.http.post<PlatformTenant>(`${this.base}/platform/tenants`, data);
+  }
+  updatePlatformTenantStatus(tenantId: number, status: 'ACTIVE' | 'SUSPENDED' | 'INACTIVE'): Observable<PlatformTenant> {
+    return this.http.patch<PlatformTenant>(`${this.base}/platform/tenants/${tenantId}/status`, { status });
+  }
+  assignPlatformSubscription(tenantId: number, plan_code: string, valid_until?: string | null): Observable<SubscriptionRecord> {
+    return this.http.post<SubscriptionRecord>(`${this.base}/platform/tenants/${tenantId}/subscriptions`, { plan_code, valid_until });
+  }
+  renewPlatformSubscription(tenantId: number): Observable<SubscriptionRecord> {
+    return this.http.post<SubscriptionRecord>(`${this.base}/platform/tenants/${tenantId}/subscriptions/renew`, {});
+  }
+  pausePlatformSubscription(tenantId: number): Observable<SubscriptionRecord> {
+    return this.http.post<SubscriptionRecord>(`${this.base}/platform/tenants/${tenantId}/subscriptions/pause`, {});
+  }
+  resumePlatformSubscription(tenantId: number): Observable<SubscriptionRecord> {
+    return this.http.post<SubscriptionRecord>(`${this.base}/platform/tenants/${tenantId}/subscriptions/resume`, {});
+  }
+  platformTenantSubscriptionHistory(tenantId: number): Observable<{ items: SubscriptionRecord[]; total: number }> {
+    return this.http.get<{ items: SubscriptionRecord[]; total: number }>(`${this.base}/platform/tenants/${tenantId}/subscriptions`);
+  }
 }

@@ -22,11 +22,15 @@ class Settings(BaseSettings):
     openai_model: str = "gpt-4.1-mini"
     gemini_api_key: str | None = None
     gemini_model: str = "gemini-1.5-flash"
-    gemini_vton_model: str = "gemini-2.5-flash-image"
+    gemini_vton_model: str = "gemini-3.1-flash-lite-image"
     stripe_secret_key: str | None = None
     stripe_publishable_key: str | None = None
     stripe_webhook_secret: str | None = None
     stripe_currency: str = "bob"
+    brevo_api_key: str | None = None
+    brevo_sender_email: str | None = None
+    brevo_sender_name: str | None = None
+    email_worker_batch_size: int = 20
 
     # The shared Docker env file also contains infrastructure variables that
     # are not application settings. Keep those variables available to the

@@ -2025,7 +2025,9 @@ graph TD
 
 ---
 
-## 8. Trazabilidad de los 23 Casos de Uso vs. Módulos
+## 8. Trazabilidad histórica de los 23 Casos de Uso del Primer Parcial vs. Módulos
+
+> Esta tabla conserva la numeración del Primer Parcial; allí, CU08 significa consultar el catálogo. Para los casos del Segundo Parcial, la fuente oficial es `docs/casos-de-uso-oficiales-parcial-2.md`: Etapa 1 incluye CU-01..CU-07, CU-23, CU-24 y CU-25; CU-08 (venta offline) corresponde a Etapa 2.
 
 | CU | Nombre del Caso de Uso | Ciclo | Actor Principal | Módulo Backend | Entidades Clave Afectadas |
 |---|---|:---:|---|---|---|
@@ -2070,6 +2072,7 @@ Contiene los siguientes paquetes formalizados bajo el estándar UML 2.5:
 - `07 - Diagramas de Estado` (Diagramas de estado UML 2.5 para CU03, CU05, CU10, CU14/CU17, CU20, CU12)
 - `08 - Diagramas de Navegación` (Diagramas de navegación Web/App UML 2.5 para CU08, CU05, CU10, CU14/CU17, CU12, CU20)
 - `09 - Diseño Lógico de la Arquitectura` (Arquitectura MVC en 3 capas: Vista, Controlador, Modelo y Base de Datos PostgreSQL)
+- `10 - Diagrama de Red (Topologia AWS)` (Topología física y segmentación perimetral DMZ/VLANs en AWS)
 
 ---
 
@@ -2496,4 +2499,1283 @@ Los paquetes agrupan la totalidad de los módulos y casos de uso del sistema Fas
 ![Diseño Lógico de la Arquitectura](./diagrams/logical-architecture-diagram.png)
 
 *Versión Enterprise Architect:* [ea-logical-architecture-diagram.png](./diagrams/ea-logical-architecture-diagram.png)
+
+---
+
+## 14. Diagrama de Red (Topología de Despliegue en AWS — UML 2.5)
+
+El **Diagrama de Red** modela la topología de infraestructura, segmentación de zonas y flujo de comunicaciones perimetrales para el despliegue de **FashionStore** en la nube de **Amazon Web Services (AWS)**, replicando la estructura de zonificación perimetral de dos niveles (DMZ y VLANs internas) bajo el estándar **UML 2.5**.
+
+### 14.1 Arquitectura y Zonificación Perimetral
+
+1. **Nivel Superior (Acceso Externo e Internet)**:
+   - **Internet (`Cloud`)**: Nube pública por donde acceden los clientes y compradores web/móviles.
+   - **Usuario (`Actor`)**: Clientes y visitantes accediendo a través de navegadores web o dispositivos móviles Flutter.
+   - **Routers Perimetrales (AWS IGW & Route 53)**: Enrutamiento de borde perimetral que recibe las peticiones externas y realiza la traducción de direcciones / balanceo inicial.
+
+2. **Firewall Perimetral (Inspección Norte-Sur)**:
+   - Implementado mediante **AWS WAF (Web Application Firewall)** y Security Groups públicos.
+   - Filtra ataques DDoS, SQL Injection, Cross-Site Scripting (XSS) y tráfico malicioso antes de ingresar a la DMZ.
+
+3. **Zona Desmilitarizada (DMZ - Subred Pública `10.0.1.0/24`)**:
+   - **Servidor de correo (`Amazon SES / Postfix Relay`)**: Orquestador de correos transaccionales (confirmación de compra, recuperación de contraseña, facturación).
+   - **Servidor web (`Angular 20 SPA + Amazon CloudFront / Nginx`)**: Servidor estático y reverse-proxy que entrega la interfaz web y distribuye tráfico seguro vía HTTPS.
+   - **DNS Server (`Amazon Route 53`)**: Servidor de nombres autoritativo y resolución de dominios públicos de la plataforma.
+
+4. **Firewall Interno (Inspección Este-Oeste)**:
+   - Implementado mediante **Network ACLs (NACL)** y Security Groups estrictos de subred privada.
+   - Aísla la DMZ de las redes internas operativas, permitiendo únicamente tráfico filtrado hacia puertos de servicio autorizados.
+
+5. **VLAN Usuarios (Subred Interna / Administrativa `10.0.5.0/24`)**:
+   - **Equipo Administrador (`Admin Workstation / POS Terminal`)**: Terminales locales de administración de la tienda, control de inventario y puntos de venta de cajeros. Acceso autenticado vía VPN IPSec / AWS Direct Connect.
+
+6. **VLAN Aplicación (Subred Privada de Backend `10.0.10.0/24`)**:
+   - **Servidor de Aplicaciones (`FastAPI + Python 3.13 + Uvicorn`)**: Ejecutado en contenedores de alto rendimiento bajo **AWS ECS Fargate** (con Auto Scaling y Application Load Balancer interno). Procesa la lógica de negocio de los 23 Casos de Uso del sistema.
+
+7. **VLAN Datos (Subred Aislada de Persistencia `10.0.100.0/24`)**:
+   - **Base de Datos (`Amazon RDS PostgreSQL 17 Multi-AZ`)**: Persistencia relacional de alta disponibilidad, accesible exclusivamente desde la VLAN Aplicación a través del puerto 5432.
+
+---
+
+### 14.2 Matriz de Segmentación de Red y Subredes (VPC AWS)
+
+| Segmento / Subred | CIDR | Zona de Red | Servicios Alojados | Exposición a Internet |
+| :--- | :--- | :--- | :--- | :--- |
+| **VPC FashionStore** | `10.0.0.0/16` | Global AWS Region | VPC Principal Multi-AZ (us-east-1a, 1b) | No (Solo vía IGW) |
+| **DMZ Pública** | `10.0.1.0/24` | Pública (DMZ) | Servidor Web (Nginx/CloudFront), DNS (Route 53), SES Relay | Pública (Puertos 80/443, 53) |
+| **VLAN Usuarios** | `10.0.5.0/24` | Privada / On-Premise | Workstations Administrativas, Terminales POS | Privada (Acceso VPN / Bastion) |
+| **VLAN Aplicación** | `10.0.10.0/24` | Privada (Backend) | Clúster ECS Fargate (FastAPI / Uvicorn) | No (Sin IP pública) |
+| **VLAN Datos** | `10.0.100.0/24` | Aislada (Database) | Amazon RDS PostgreSQL 17 Multi-AZ | No (Aislada completamente) |
+
+---
+
+### 14.3 Matriz de Tráfico, Puertos y Protocolos
+
+| Flujo Origen | Flujo Destino | Protocolo / Puerto | Descripción y Seguridad |
+| :--- | :--- | :--- | :--- |
+| **Internet / Usuario** | **Servidor Web (DMZ)** | `HTTPS / TCP 443` | Descarga de la aplicación web Angular 20 y assets estáticos vía TLS 1.3. |
+| **Internet / Clientes** | **DNS Server (DMZ)** | `DNS / UDP-TCP 53` | Resolución de nombres de dominio y subdominios de FashionStore. |
+| **Servidor Aplicaciones** | **Servidor Correo (DMZ)** | `SMTP / TCP 587 (STARTTLS)` | Notificaciones de órdenes, facturas digitales y códigos de verificación. |
+| **Servidor Web (DMZ)** | **Servidor Aplicaciones (VLAN App)** | `HTTP / TCP 8000` | Reenvío de llamadas API REST (`/api/v1/*`) desde el reverse-proxy hacia FastAPI. |
+| **Equipo Administrador (VLAN Usuarios)** | **Servidor Aplicaciones (VLAN App)** | `HTTPS / TCP 8000` + `SSH / TCP 22` | Consumo de APIs administrativas, auditoría y monitoreo. |
+| **Servidor Aplicaciones (VLAN App)** | **Base de Datos (VLAN Datos)** | `PostgreSQL / TCP 5432` | Consultas relacionales ORM (SQLAlchemy), transacciones de ventas y reservas. |
+
+---
+
+### 14.4 Diagrama Visual de Topología de Red
+
+El siguiente diagrama representa fielmente la topología de red con simbología perimetral (nube de Internet, enrutadores de borde, firewalls perimetral e interno, DMZ y las tres VLANs segmentadas):
+
+![Diagrama de Red AWS](./diagrams/diagrama-red-aws.png)
+
+*Versión nativa modelada en Enterprise Architect (UML 2.5):* [ea-diagrama-red-aws.png](./diagrams/ea-diagrama-red-aws.png)
+
+![Diagrama de Red en Enterprise Architect](./diagrams/ea-diagrama-red-aws.png)
+
+---
+
+### 14.5 Especificación en Mermaid (UML 2.5 Deployment / Network Topology)
+
+```mermaid
+flowchart TD
+    %% Internet y Usuarios
+    Internet(("fa:fa-cloud Internet<br/>(AWS Cloud)"))
+    Usuario["fa:fa-user Usuario<br/>(Cliente Web / Móvil)"]
+    RouterExt["fa:fa-globe Router Perimetral<br/>(AWS IGW / Route 53)"]
+
+    Internet --- RouterExt
+    Usuario --- RouterExt
+
+    %% Firewall Perimetral
+    FW_Ext["fa:fa-shield-alt Firewall Perimetral<br/>(AWS WAF & Public SG)"]
+    RouterExt --> FW_Ext
+
+    %% DMZ
+    subgraph DMZ["Zona Desmilitarizada (DMZ) - Subred 10.0.1.0/24"]
+        direction TB
+        MailServer["fa:fa-envelope Servidor de correo<br/>(Amazon SES / SMTP Relay)"]
+        WebServer["fa:fa-server Servidor web<br/>(Angular 20 SPA / Nginx)"]
+        DNSServer["fa:fa-network-wired DNS Server<br/>(Amazon Route 53)"]
+    end
+
+    FW_Ext --> DMZ
+
+    %% Firewall Interno
+    FW_Int["fa:fa-shield-alt Firewall Interno<br/>(NACL & Internal SG)"]
+    DMZ --> FW_Int
+
+    %% VLANs Internas
+    subgraph RedInterna["Red Interna AWS VPC (10.0.0.0/16)"]
+        direction TB
+        subgraph VLAN_Users["VLAN Usuarios (10.0.5.0/24)"]
+            AdminWorkstation["fa:fa-desktop Equipo administrador<br/>(Admin PC / POS Terminal)"]
+        end
+
+        subgraph VLAN_App["VLAN Aplicación (10.0.10.0/24)"]
+            AppServer["fa:fa-cogs Servidor de aplicaciones<br/>(FastAPI / ECS Fargate)"]
+        end
+
+        subgraph VLAN_Data["VLAN Datos (10.0.100.0/24)"]
+            Database[("fa:fa-database Base de datos<br/>(RDS PostgreSQL 17 Multi-AZ)")]
+        end
+    end
+
+    FW_Int --> VLAN_Users
+    FW_Int --> VLAN_App
+    VLAN_Users -->|HTTPS:8000| VLAN_App
+    VLAN_App -->|TCP:5432| VLAN_Data
+    VLAN_App -.->|SMTP:587| MailServer
+```
+
+---
+
+## 15. Arquitectura ICONIX — Extensión SaaS Multi-Tenant y Catálogo Offline (Etapa 1)
+
+### 15.1 Contexto y Metodología ICONIX en la Etapa 1
+
+En la **Etapa 1 (SaaS Multitenant y Catálogo Offline)**, la metodología ICONIX guía la transición desde los requisitos de aislamiento multi-tenant y disponibilidad sin conexión hasta el código implementado, articulando:
+1. **Modelo de Dominio:** Refleja la jerarquía multi-empresa (`Tenant`, `SubscriptionPlan`, `Subscription`) que subordina a las entidades operativas, y los esquemas de persistencia offline local (`IndexedDB` en Angular PWA y `SQLite` en Flutter).
+2. **Diagramas de Robustez (BCE):** Separan limpiamente las interfaces limítrofes (`Boundary`), la lógica de control y aislamiento (`Control`) y las entidades de datos (`Entity`), evidenciando los filtros automáticos y las validaciones de límites de plan.
+3. **Diagramas de Secuencia:** Detallan los flujos temporales de mensajería para alta de empresa, autorización sin filtrado cruzado y sincronización/consulta local con advertencia de vigencia.
+
+---
+
+### 15.2 Modelo de Dominio SaaS Multitenant y Catálogo Offline
+
+```mermaid
+classDiagram
+    direction TB
+
+    class Tenant {
+        +int id
+        +string name
+        +string status
+        +datetime created_at
+        +datetime updated_at
+    }
+
+    class SubscriptionPlan {
+        +int id
+        +string code
+        +string name
+        +int max_active_branches
+        +bool generative_reports_enabled
+        +bool is_active
+    }
+
+    class Subscription {
+        +int id
+        +int tenant_id
+        +int plan_id
+        +string status
+        +datetime valid_from
+        +datetime valid_until
+    }
+
+    class User {
+        +int id
+        +int tenant_id
+        +int role_id
+        +string email
+        +string first_name
+        +string last_name
+        +bool is_active
+    }
+
+    class Branch {
+        +int id
+        +int tenant_id
+        +int city_id
+        +string name
+        +string address
+        +bool is_active
+    }
+
+    class Category {
+        +int id
+        +int tenant_id
+        +string name
+        +bool is_active
+    }
+
+    class Product {
+        +int id
+        +int tenant_id
+        +int category_id
+        +string code
+        +string name
+        +string slug
+        +decimal price
+        +bool is_active
+    }
+
+    class ProductVariant {
+        +int id
+        +int tenant_id
+        +int product_id
+        +int size_id
+        +int color_id
+        +string sku
+        +bool is_active
+    }
+
+    class Inventory {
+        +int id
+        +int tenant_id
+        +int branch_id
+        +int product_variant_id
+        +int stock_quantity
+        +int reserved_quantity
+    }
+
+    class OfflineCatalogStorage {
+        <<Local Store: IndexedDB / SQLite>>
+        +SyncMetadata metadata
+        +List~SyncCategory~ categories
+        +List~SyncProduct~ products
+        +List~SyncVariant~ variants
+        +List~SyncInventory~ inventory
+    }
+
+    Tenant "1" --> "*" Subscription : "historial"
+    SubscriptionPlan "1" --> "*" Subscription : "aplica"
+    Tenant "1" --> "*" User : "pertenece"
+    Tenant "1" --> "*" Branch : "posee"
+    Tenant "1" --> "*" Category : "posee"
+    Tenant "1" --> "*" Product : "posee"
+    Product "1" --> "*" ProductVariant : "variantes"
+    Tenant "1" --> "*" Inventory : "disponibilidad"
+    Branch "1" --> "*" Inventory : "stock local"
+    ProductVariant "1" --> "*" Inventory : "unidades"
+    Branch "1" ..> OfflineCatalogStorage : "sincroniza datos locales"
+```
+
+---
+
+### 15.3 Diagramas de Análisis de Robustez BCE (ICONIX)
+
+#### 15.3.1 CU-01/CU-03: Alta de Empresa y Suscripción SaaS (CU-02 para gestión de planes) (BCE)
+
+```mermaid
+flowchart LR
+    Actor["fa:fa-user-shield Administrador Plataforma"]
+    Boundary["«boundary»<br/>PlatformTenantsUI"]
+    ControlAuth["«control»<br/>require_platform_admin"]
+    ControlTenant["«control»<br/>PlatformTenantService"]
+    EntityTenant[("«entity»<br/>Tenant")]
+    EntityPlan[("«entity»<br/>SubscriptionPlan")]
+    EntitySub[("«entity»<br/>Subscription")]
+    EntityAudit[("«entity»<br/>Bitacora")]
+
+    Actor --> Boundary
+    Boundary --> ControlAuth
+    ControlAuth --> ControlTenant
+    ControlTenant --> EntityTenant
+    ControlTenant --> EntityPlan
+    ControlTenant --> EntitySub
+    ControlTenant --> EntityAudit
+```
+
+#### 15.3.2 Alcance Multi-Tenant Transversal (relacionado con CU-05) (BCE)
+
+```mermaid
+flowchart LR
+    Actor["fa:fa-user Usuario / Cliente"]
+    Boundary["«boundary»<br/>HttpApiRouter"]
+    ControlToken["«control»<br/>get_current_user_tenant"]
+    ControlScope["«control»<br/>TenantLoaderCriteria"]
+    EntityUser[("«entity»<br/>User")]
+    EntityTenant[("«entity»<br/>Tenant (ACTIVE)")]
+    EntityResource[("«entity»<br/>TenantScopedResource")]
+
+    Actor --> Boundary
+    Boundary --> ControlToken
+    ControlToken --> EntityUser
+    ControlToken --> EntityTenant
+    ControlToken --> ControlScope
+    ControlScope --> EntityResource
+```
+
+#### 15.3.3 CU04: Creación de Sucursal con Control Transaccional de Cuota de Plan (BCE)
+
+```mermaid
+flowchart LR
+    Actor["fa:fa-user-tie Administrador Empresa"]
+    Boundary["«boundary»<br/>BranchManagementUI"]
+    ControlQuota["«control»<br/>_enforce_branch_limit (for_update)"]
+    ControlBranch["«control»<br/>create_branch"]
+    EntitySub[("«entity»<br/>Subscription")]
+    EntityPlan[("«entity»<br/>SubscriptionPlan (max_active_branches)")]
+    EntityBranch[("«entity»<br/>Branch")]
+
+    Actor --> Boundary
+    Boundary --> ControlQuota
+    ControlQuota --> EntitySub
+    ControlQuota --> EntityPlan
+    ControlQuota --> ControlBranch
+    ControlBranch --> EntityBranch
+```
+
+#### 15.3.4 CU-06/CU-07/CU-23/CU-24/CU-25: Catálogo Offline, Conectividad y Persistencia (BCE)
+
+```mermaid
+flowchart LR
+    Actor["fa:fa-mobile Cliente / Cajero"]
+    BoundaryApp["«boundary»<br/>CatalogScreen / SyncStatusBar"]
+    ControlSync["«control»<br/>SyncCatalogService"]
+    ControlApi["«control»<br/>SyncCatalogEndpoint (/sync/catalog)"]
+    ControlFallback["«control»<br/>OfflineFallbackInterceptor"]
+    EntityBackend[("«entity»<br/>Catalog / Inventory (Backend)")]
+    EntityLocal[("«entity»<br/>IndexedDB / SQLite")]
+
+    Actor --> BoundaryApp
+    BoundaryApp -->|Descargar offline| ControlSync
+    ControlSync --> ControlApi
+    ControlApi --> EntityBackend
+    ControlSync -->|Guardado atómico| EntityLocal
+
+    BoundaryApp -->|Navegación / Consulta| ControlFallback
+    ControlFallback -->|Online| ControlApi
+    ControlFallback -->|Offline / Red inactiva| EntityLocal
+```
+
+---
+
+### 15.4 Diagramas de Secuencia ICONIX
+
+#### 15.4.1 Secuencia CU-01/CU-03: Alta de Empresa y Suscripción SaaS Inicial
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor AdminPlataforma as Administrador Plataforma
+    participant UI as PlatformTenantsUI
+    participant Auth as AuthDependencies
+    participant Service as SubscriptionService
+    participant DB as RDS PostgreSQL
+    participant Audit as BitacoraService
+
+    AdminPlataforma->>UI: Ingresar datos empresa y plan inicial
+    UI->>Auth: POST /api/v1/platform/tenants (Bearer Token)
+    Auth->>Auth: Validar rol PLATFORM_ADMIN y permiso saas.tenants.manage
+    Auth->>Service: create_tenant(db, data, current_user)
+    Service->>DB: INSERT INTO tenants (name, status=ACTIVE)
+    Service->>DB: SELECT * FROM subscription_plans WHERE id = plan_id
+    Service->>DB: INSERT INTO subscriptions (tenant_id, plan_id, status=ACTIVE, valid_from, valid_until)
+    Service->>Audit: record_audit(action=TENANT_REGISTERED)
+    Audit->>DB: INSERT INTO bitacora
+    Service-->>UI: 201 Created (TenantDetailResponse)
+    UI-->>AdminPlataforma: Notificar empresa y suscripción activa
+```
+
+#### 15.4.2 Secuencia: Aislamiento Multi-Tenant y Bloqueo de Infiltración Cruzada
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor UsuarioAlpha as Usuario Empresa Alpha
+    participant API as ApiGateway / Router
+    participant Auth as AuthDependencies
+    participant DB as RDS PostgreSQL
+
+    UsuarioAlpha->>API: GET /api/v1/products/200 (Producto de Beta)
+    API->>Auth: Validar JWT Bearer
+    Auth->>DB: SELECT * FROM usuarios WHERE id = sub
+    Auth->>DB: SELECT * FROM tenants WHERE id = tenant_id AND status = ACTIVE
+    Auth->>API: Contexto {tenant_id: 1}
+    API->>DB: SELECT * FROM productos WHERE id = 200 AND tenant_id = 1
+    Note over DB: No coincide con tenant_id = 1 (Pertenece a tenant 2)
+    DB-->>API: 0 filas retornadas
+    API-->>UsuarioAlpha: 404 Not Found ("Producto no encontrado")
+```
+
+#### 15.4.3 Secuencia CU-06/CU-07/CU-23/CU-24/CU-25: Sincronización y Consulta Offline con Advertencia de Vigencia
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Cliente as Cliente (PWA / Flutter)
+    participant UI as CatalogScreen
+    participant Sync as SyncCatalogService
+    participant API as SyncRouter (/api/v1/sync/catalog)
+    participant LocalDB as LocalStorage (IndexedDB / SQLite)
+
+    Cliente->>UI: Clic en "Descargar catálogo offline"
+    UI->>Sync: syncCatalog(branchId)
+    Sync->>API: GET /api/v1/sync/catalog?branch_id=5
+    API->>API: Validar tenant_id y branch_id asignado
+    API-->>Sync: 200 OK (SyncCatalogResponse normalizado)
+    Sync->>LocalDB: beginTransaction()
+    Sync->>LocalDB: clearPreviousData()
+    Sync->>LocalDB: insertBatch(metadata, categories, products, variants, inventory)
+    Sync->>LocalDB: commit()
+    Sync-->>UI: Sincronización exitosa (lastSync = now)
+
+    Note over Cliente,LocalDB: Pérdida de conexión a Internet (Offline)
+    Cliente->>UI: Navegar o buscar prendas
+    UI->>Sync: listProducts() (Red falla o desconectado)
+    Sync->>LocalDB: SELECT * FROM products WHERE is_active=1
+    LocalDB-->>Sync: Lista local de prendas
+    Sync-->>UI: CatalogPage(items, isOffline=true)
+    UI-->>Cliente: Mostrar catálogo local + Banner "Precios y disponibilidad locales pueden estar desactualizados"
+```
+
+---
+
+### 15.5 Matriz de Correspondencia entre Artefactos ICONIX y Código Implementado
+
+| Elemento ICONIX | Tipo de Artefacto | Archivo / Componente en Código | Responsabilidad Técnica |
+|---|---|---|---|
+| `Tenant`, `SubscriptionPlan`, `Subscription` | Modelo de Dominio / Entidad | `backend/app/core/models.py` | Modelos relacionales SaaS con claves compuestas `(tenant_id, ...)` |
+| `require_platform_admin` | Control | `backend/app/modules/auth/dependencies.py` | Segregación estricta de administración SaaS vs. operativa de empresa |
+| `_enforce_branch_limit` | Control | `backend/app/modules/locations/service.py` | Bloqueo transaccional con `with_for_update()` de cuotas de sucursales activas |
+| `TenantLoaderCriteria` | Control | `backend/app/core/database.py` | Inyección transparente de `tenant_id` en todas las consultas ORM |
+| `SyncCatalogRouter` | Control / Boundary | `backend/app/modules/sync/router.py` | Endpoint `GET /api/v1/sync/catalog` con derivación y validación de sucursal |
+| `OfflineCatalogService` | Control / Entidad Local | `web/src/app/core/offline/offline-catalog.service.ts` | Almacenamiento IndexedDB v1 para catálogo offline en Angular PWA |
+| `SyncCatalogService` (Web) | Control | `web/src/app/core/offline/sync-catalog.service.ts` | Sincronización reactiva y señales de estado de red (`isOnline`, `lastSync`) |
+| `OfflineDatabase` | Control / Entidad Local | `mobile/lib/core/offline/offline_database.dart` | Base relacional SQLite v1 (`fashionstore_offline.db`) en Flutter |
+| `SyncCatalogService` (Móvil)| Control | `mobile/lib/core/offline/sync_catalog_service.dart` | Sincronización y persistencia atómica en SQLite |
+| `CatalogScreen` (Sync UI) | Boundary | `web/.../catalog.component.ts` & `mobile/.../catalog_screen.dart` | Indicador visual de conectividad, descarga manual y advertencia de vigencia |
+
+---
+
+## 16. Metodología ICONIX — Etapa 2: Operaciones Comerciales Offline y Sincronización Transaccional
+
+La **Etapa 2** amplía el diseño formal ICONIX de FashionStore para dar soporte a la operación comercial en condiciones de conectividad nula o intermitente, garantizando la continuidad operativa de tiendas físicas mediante el patrón arquitectónico **Outbox Local**, sincronización transaccional idempotente en el backend y resolución determinista de conflictos de inventario.
+
+---
+
+### 16.1 Modelo de Dominio Ampliado (Transacciones Offline, Outbox y Resolución de Conflictos)
+
+```mermaid
+classDiagram
+    class Tenant {
+        +int id
+        +string name
+        +string status
+    }
+
+    class Branch {
+        +int id
+        +int tenant_id
+        +string name
+        +string code
+    }
+
+    class SyncOperation {
+        +int id
+        +int tenant_id
+        +string client_operation_id
+        +int branch_id
+        +string operation_type
+        +string status
+        +dict payload
+        +dict conflict_detail
+        +int sale_id
+        +int reservation_id
+        +datetime processed_at
+    }
+
+    class LocalOutboxRecord {
+        +string client_operation_id
+        +int branch_id
+        +string operation_type
+        +string status
+        +string payload_json
+        +string conflict_detail_json
+        +datetime created_at
+        +datetime synced_at
+    }
+
+    class Sale {
+        +int id
+        +int tenant_id
+        +int branch_id
+        +string sale_type
+        +string status
+        +float total
+    }
+
+    class Payment {
+        +int id
+        +int sale_id
+        +string payment_method
+        +string status
+        +float amount
+    }
+
+    class Reservation {
+        +int id
+        +int tenant_id
+        +int branch_id
+        +string customer_name
+        +string status
+    }
+
+    class Inventory {
+        +int id
+        +int branch_id
+        +int product_variant_id
+        +int stock_quantity
+        +int reserved_quantity
+        +int available_quantity
+    }
+
+    class InventoryMovement {
+        +int id
+        +int inventory_id
+        +string movement_type
+        +int quantity
+        +string reference_type
+    }
+
+    Tenant "1" --> "*" Branch : posee
+    Tenant "1" --> "*" SyncOperation : registra
+    Branch "1" --> "*" SyncOperation : origina
+    SyncOperation "0..1" --> "0..1" Sale : materializa
+    SyncOperation "0..1" --> "0..1" Reservation : materializa
+    Sale "1" --> "1..*" Payment : cancelada por
+    Branch "1" --> "*" Inventory : almacena
+    Inventory "1" --> "*" InventoryMovement : registra
+    LocalOutboxRecord ..> SyncOperation : sincroniza a
+```
+
+---
+
+### 16.2 Diagramas de Robustez (Análisis BCE — Boundary, Control, Entity)
+
+#### 16.2.1 CU15: Realizar Venta Presencial (POS) Offline con Outbox y Deducción Provisional
+
+```mermaid
+flowchart TD
+    Cajero((Cajero))
+    
+    subgraph Boundary["Frontera (Boundary)"]
+        UI_POS["POSView / POSComponent"]
+        TrayModal["OfflineAlertBanner"]
+    end
+    
+    subgraph Control["Control"]
+        TxController["OfflineTransactionService"]
+        LocalInvManager["decrementLocalInventory"]
+        IdGen["UUID / OpId Generator"]
+    end
+    
+    subgraph Entity["Entidad (Entity)"]
+        LocalDB[("Local Outbox Store<br/>(IndexedDB / SQLite)")]
+        LocalInv[("Local Inventory Cache")]
+    end
+
+    Cajero -->|1. Ingresar prendas y cobrar en efectivo| UI_POS
+    UI_POS -->|2. Detectar estado offline o fallback| TxController
+    TxController -->|3. Generar client_operation_id unico| IdGen
+    IdGen -->|4. Retornar UUID idempotente| TxController
+    TxController -->|5. Guardar operacion PENDING_SYNC| LocalDB
+    TxController -->|6. Descontar stock disponible provisional| LocalInvManager
+    LocalInvManager -->|7. Actualizar stock y disponible| LocalInv
+    TxController -->>|8. Confirmar venta local e imprimir ticket| UI_POS
+    UI_POS -->|9. Notificar venta registrada offline| TrayModal
+```
+
+#### 16.2.2 CU10: Realizar Reserva Offline de Prendas
+
+```mermaid
+flowchart TD
+    Cliente((Cliente / Asesor))
+    
+    subgraph Boundary["Frontera (Boundary)"]
+        UI_Bag["FittingBagComponent / ReservationsScreen"]
+    end
+    
+    subgraph Control["Control"]
+        ResController["recordOfflineReservation"]
+        LocalResManager["reserveLocalInventory"]
+    end
+    
+    subgraph Entity["Entidad (Entity)"]
+        LocalDB[("Local Outbox Store<br/>(pending_operations)")]
+        LocalInv[("Local Inventory Cache")]
+    end
+
+    Cliente -->|1. Solicitar reserva de prendas en showroom| UI_Bag
+    UI_Bag -->|2. Invocar registro offline| ResController
+    ResController -->|3. Crear registro PENDING_SYNC con datos cliente| LocalDB
+    ResController -->|4. Incrementar reserved_quantity local| LocalResManager
+    LocalResManager -->|5. Actualizar cantidades en cache| LocalInv
+    ResController -->>|6. Notificar reserva offline agendada| UI_Bag
+```
+
+#### 16.2.3 CU27: Sincronización Transaccional en Lote, Idempotencia y Resolución de Conflictos
+
+```mermaid
+flowchart TD
+    Scheduler((Reconexion / Usuario))
+
+    subgraph Boundary["Frontera (Boundary)"]
+        SyncClient["SyncTransactionService (PWA / Mobile)"]
+        SyncAPI["SyncRouter: POST /api/v1/sync/transactions"]
+    end
+
+    subgraph Control["Control"]
+        BatchService["process_sync_transactions_batch"]
+        IdempotencyGuard["Verificador de Idempotencia"]
+        StockCheck["StockValidator (with_for_update)"]
+        SaleCreator["Confirmador de Venta y Pago CASH"]
+        ResCreator["Confirmador de Reserva"]
+        ConflictLogger["Registrador de Conflictos (INSUFFICIENT_STOCK)"]
+    end
+
+    subgraph Entity["Entidad (Entity)"]
+        LocalDB[("Outbox Local (IndexedDB / SQLite)")]
+        DBSyncOp[("Tabla sync_operations")]
+        DBSale[("Tablas ventas y pagos")]
+        DBRes[("Tabla reservas")]
+        DBInv[("Tablas inventarios y movimientos")]
+    end
+
+    Scheduler -->|1. Evento online o sincronizacion manual| SyncClient
+    SyncClient -->|2. Leer operaciones PENDING_SYNC| LocalDB
+    SyncClient -->|3. Enviar lote POST /api/v1/sync/transactions| SyncAPI
+    SyncAPI -->|4. Despachar a servicio transaccional| BatchService
+    
+    BatchService -->|5. Verificar existencia previa por client_operation_id| IdempotencyGuard
+    IdempotencyGuard -->|6. Consultar registro historico| DBSyncOp
+
+    alt Operacion ya procesada (Idempotencia)
+        IdempotencyGuard -->>|7a. Retornar resultado previo almacenado| BatchService
+    else Operacion nueva - Venta
+        BatchService -->|7b. Bloquear y verificar stock en sucursal| StockCheck
+        StockCheck -->|8b. Consultar inventario central| DBInv
+        alt Stock disponible suficiente
+            StockCheck -->|9b. Descontar stock y registrar movimiento| SaleCreator
+            SaleCreator -->|10b. Crear venta COMPLETED y pago CASH APPROVED| DBSale
+            SaleCreator -->|11b. Guardar operacion CONFIRMED| DBSyncOp
+        else Stock insuficiente en servidor (Conflicto)
+            StockCheck -->|9c. Detectar sobreventa concurrente| ConflictLogger
+            ConflictLogger -->|10c. Guardar operacion CONFLICT y detalle INSUFFICIENT_STOCK| DBSyncOp
+            Note over ConflictLogger,DBInv: No se descuenta inventario ni se crea venta invalida
+        end
+    else Operacion nueva - Reserva
+        BatchService -->|7d. Validar y registrar reserva| ResCreator
+        ResCreator -->|8d. Incrementar reserved_quantity| DBInv
+        ResCreator -->|9d. Guardar operacion CONFIRMED| DBSyncOp
+    end
+
+    BatchService -->>|12. Retornar SyncTransactionBatchResponse| SyncAPI
+    SyncAPI -->>|13. 200 OK con resultados individuales| SyncClient
+    SyncClient -->|14. Actualizar estado local CONFIRMED o CONFLICT| LocalDB
+```
+
+#### 16.2.4 CU28: Bandeja de Operaciones Offline y Auditoría de Sincronización
+
+```mermaid
+flowchart TD
+    Usuario((Usuario / Cajero))
+
+    subgraph Boundary["Frontera (Boundary)"]
+        TrayUI["OfflineTransactionsTrayComponent / OfflineOperationsScreen"]
+    end
+
+    subgraph Control["Control"]
+        FilterCtrl["Filtrador por Estado (ALL, PENDING, CONFIRMED, CONFLICT)"]
+        SyncTrigger["Trigger de Sincronizacion Inmediata"]
+    end
+
+    subgraph Entity["Entidad (Entity)"]
+        LocalDB[("Outbox Local Store")]
+    end
+
+    Usuario -->|1. Acceder a Bandeja Offline desde Navbar/Showroom| TrayUI
+    TrayUI -->|2. Consultar listado de transacciones locales| FilterCtrl
+    FilterCtrl -->|3. Leer registros ordenados por fecha| LocalDB
+    LocalDB -->>|4. Retornar operaciones| TrayUI
+    Usuario -->|5. Seleccionar filtro 'Conflictos'| FilterCtrl
+    FilterCtrl -->>|6. Renderizar causas de rechazo (INSUFFICIENT_STOCK)| TrayUI
+    Usuario -->|7. Clic en 'Sincronizar ahora'| SyncTrigger
+```
+
+#### 16.2.5 CU29: Gestión de Cambios de Prendas (Ventana de 30 días)
+
+```mermaid
+flowchart TD
+    Cliente((Cliente con Prenda))
+
+    subgraph Boundary["Frontera (Boundary)"]
+        ExchangeUI["ExchangeDialog / POSExchangeModal"]
+        ExchangeAPI["POST /api/v1/sales/{id}/exchange"]
+    end
+
+    subgraph Control["Control"]
+        ExchangeService["ExchangeService.process_item_exchange"]
+        TimeValidator["Verificador de Plazo (30 Dias)"]
+        StockReturn["Reintegrador de Prenda Devuelta (RETURN)"]
+        StockDispatch["Despachador de Nueva Prenda (SALE)"]
+    end
+
+    subgraph Entity["Entidad (Entity)"]
+        DBSale[("Venta Original")]
+        DBInv[("Inventario de Sucursal")]
+        DBMov[("Movimientos de Inventario")]
+    end
+
+    Cliente -->|1. Solicitar cambio de talla/color con ticket| ExchangeUI
+    ExchangeUI -->|2. Invocar endpoint de cambio| ExchangeAPI
+    ExchangeAPI -->|3. Validar tenant y sesion| ExchangeService
+    ExchangeService -->|4. Validar fecha venta <= 30 dias| TimeValidator
+    TimeValidator -->|5. Consultar venta original| DBSale
+
+    alt Fecha excede 30 dias
+        TimeValidator -->>|6a. Error 400: Plazo de cambio vencido| ExchangeAPI
+    else Dentro de los 30 dias y nueva prenda disponible
+        ExchangeService -->|6b. Devolver prenda anterior al stock| StockReturn
+        StockReturn -->|7b. +1 en inventario y movimiento RETURN| DBMov
+        ExchangeService -->|8b. Despachar nueva prenda seleccionada| StockDispatch
+        StockDispatch -->|9b. -1 en inventario y movimiento SALE| DBMov
+        ExchangeService -->>|10b. 200 OK con confirmacion de cambio| ExchangeAPI
+        ExchangeAPI -->>|11b. Comprobante de cambio exitoso| ExchangeUI
+    end
+```
+
+---
+
+### 16.3 Diagramas de Secuencia (Diseño Preliminar y Detallado)
+
+#### 16.3.1 Secuencia CU15: Registro de Venta Offline en POS y Deducción Provisional
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Cajero as Cajero POS
+    participant UI as POSComponent (Web / Mobile)
+    participant TxService as OfflineTransactionService
+    participant LocalDB as Outbox Local (IndexedDB / SQLite)
+    participant LocalInv as Local Inventory Cache
+
+    Cajero->>UI: Agregar prendas al carrito y presionar "Cobro Contado"
+    UI->>UI: Comprobar conectividad (Sin conexion a Internet)
+    UI->>TxService: recordOfflineSale(branchId, payload)
+    TxService->>TxService: Generar client_operation_id ("op-web-uuid" / "op-mob-uuid")
+    TxService->>LocalDB: insert({client_operation_id, status: "PENDING_SYNC", payload, created_at})
+    loop Por cada item vendido
+        TxService->>LocalInv: decrementLocalInventory(variantId, quantity)
+        LocalInv-->>TxService: Stock local decrementado preventivamente
+    end
+    TxService-->>UI: OfflineOperationRecord creado
+    UI-->>Cajero: Alerta visual "Venta registrada offline" + Badge pendiente +1
+```
+
+#### 16.3.2 Secuencia CU27: Sincronización Transaccional con Concurrencia y Conflicto (`INSUFFICIENT_STOCK`)
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor TerminalA as Terminal POS A (Offline)
+    actor TerminalB as Terminal POS B (Offline)
+    participant API as SyncRouter (/api/v1/sync/transactions)
+    participant Service as SyncService
+    participant DB as RDS PostgreSQL
+
+    Note over TerminalA,TerminalB: Ambas terminales venden la ULTIMA unidad disponible (stock = 1) offline
+    TerminalA->>TerminalA: Venta offline A guardada (op-A). Stock local = 0
+    TerminalB->>TerminalB: Venta offline B guardada (op-B). Stock local = 0
+
+    Note over TerminalA,API: Terminal A recupera conexion primero
+    TerminalA->>API: POST /api/v1/sync/transactions ([op-A])
+    API->>Service: process_sync_transactions_batch(tenant_id=1, [op-A])
+    Service->>DB: SELECT * FROM inventarios WHERE variant_id=101 FOR UPDATE
+    DB-->>Service: Stock disponible = 1
+    Service->>DB: UPDATE inventarios SET stock_quantity=0, available_quantity=0
+    Service->>DB: INSERT INTO ventas (PHYSICAL, COMPLETED)
+    Service->>DB: INSERT INTO pagos (CASH, APPROVED)
+    Service->>DB: INSERT INTO sync_operations (client_operation_id="op-A", status="CONFIRMED")
+    Service-->>API: BatchResult: op-A CONFIRMED (sale_id=101)
+    API-->>TerminalA: 200 OK (CONFIRMED)
+    TerminalA->>TerminalA: Marcar op-A como CONFIRMADA
+
+    Note over TerminalB,API: Terminal B sincroniza despues
+    TerminalB->>API: POST /api/v1/sync/transactions ([op-B])
+    API->>Service: process_sync_transactions_batch(tenant_id=1, [op-B])
+    Service->>DB: SELECT * FROM inventarios WHERE variant_id=101 FOR UPDATE
+    DB-->>Service: Stock disponible = 0 (Agotado por Terminal A)
+    Service->>Service: Conflicto detectado: Solicitado=1, Disponible=0
+    Service->>DB: INSERT INTO sync_operations (client_operation_id="op-B", status="CONFLICT", conflict_detail={code: "INSUFFICIENT_STOCK"})
+    Note over DB: No se crea venta ni se descuenta inventario por debajo de 0
+    Service-->>API: BatchResult: op-B CONFLICT (code: "INSUFFICIENT_STOCK")
+    API-->>TerminalB: 200 OK (CONFLICT)
+    TerminalB->>TerminalB: Marcar op-B como CONFLICTO con motivo visible en Bandeja
+```
+
+#### 16.3.3 Secuencia CU29: Cambio de Prenda dentro de los 30 días con Reintegro y Salida de Inventario
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Cliente as Cliente / Cajero
+    actor Gerente as Encargado Sucursal
+    participant UI as ExchangeModal
+    participant Router as CommerceRouter (/api/v1/sales/{id}/exchange)
+    participant Service as CommerceService
+    participant DB as RDS PostgreSQL
+
+    Cliente->>UI: Presentar prenda y solicitar cambio de talla (dentro de los 30 dias)
+    UI->>Router: POST /api/v1/sales/50/exchange {old_variant_id: 101, new_variant_id: 102}
+    Router->>Service: process_item_exchange(sale_id=50, old_variant_id, new_variant_id)
+    Service->>DB: SELECT * FROM ventas WHERE id = 50 AND tenant_id = 1
+    Service->>Service: Validar: (now - created_at).days <= 30
+    Service->>DB: SELECT * FROM inventarios WHERE variant_id=102 FOR UPDATE (Nueva prenda)
+    DB-->>Service: Stock nueva prenda disponible = 5
+    Service->>DB: UPDATE inventarios SET stock = stock + 1 WHERE variant_id=101 (Prenda devuelta)
+    Service->>DB: INSERT INTO movimientos_inventario (RETURN, quantity=1, ref="CAMBIO_PRENDA")
+    Service->>DB: UPDATE inventarios SET stock = stock - 1 WHERE variant_id=102 (Nueva prenda)
+    Service->>DB: INSERT INTO movimientos_inventario (SALE, quantity=1, ref="CAMBIO_PRENDA")
+    Service->>DB: INSERT INTO bitacora (action="ITEM_EXCHANGE", details={sale_id: 50})
+    Service-->>Router: 200 OK (ExchangeResult)
+    Router-->>UI: Cambio exitoso confirmado
+    UI-->>Cliente: Entregar nueva prenda y comprobante de cambio
+```
+
+---
+
+### 16.4 Matriz de Trazabilidad Actualizada (Etapa 2)
+
+| Requisito Examen Parcial 2 | Caso de Uso | Elemento ICONIX (BCE) | Componente en Backend | Componente en Web (PWA) | Componente en Móvil (Flutter) |
+|---|---|---|---|---|---|
+| 7.2 Venta Presencial Offline | CU15 | Control: `recordOfflineSale`<br/>Entidad: `LocalOutboxRecord` | N/A (Ejecución local autónoma) | `OfflineTransactionService.recordOfflineSale`<br/>Store: `pending_operations` | `OfflineTransactionRepository.recordOfflineSale`<br/>Tabla: `offline_operations` |
+| 7.2 Deducción Provisional de Stock | CU15 | Control: `decrementLocalInventory`<br/>Entidad: `LocalInventory` | N/A | `OfflineCatalogService.decrementLocalInventory` | `OfflineDatabase.decrementLocalInventory` |
+| 7.2 Reserva Offline de Prendas | CU10 | Control: `recordOfflineReservation`<br/>Entidad: `LocalOutboxRecord` | N/A | `OfflineTransactionService.recordOfflineReservation` | `OfflineTransactionRepository.recordOfflineReservation` |
+| 7.2 Reserva Provisional de Stock | CU10 | Control: `reserveLocalInventory`<br/>Entidad: `LocalInventory` | N/A | `OfflineCatalogService.reserveLocalInventory` | `OfflineDatabase.reserveLocalInventory` |
+| 7.2 Sincronización Transaccional en Lote | CU27 | Control: `process_sync_transactions_batch`<br/>Boundary: `SyncRouter` | `backend/app/modules/sync/service.py`<br/>`router.py` (`POST /api/v1/sync/transactions`) | `SyncTransactionService.syncPendingTransactions` | `SyncTransactionService.syncPendingTransactions` |
+| 7.2 Idempotencia Transaccional | CU27 | Control: `IdempotencyGuard`<br/>Entidad: `SyncOperation` | `uq_sync_operations_tenant_client_op_id`<br/>en `backend/app/core/models.py` | Generación de UUID `client_operation_id` | Generación de UUID `client_operation_id` |
+| 7.2 Resolución de Conflictos (`INSUFFICIENT_STOCK`) | CU27 | Control: `ConflictDetector`<br/>Entidad: `SyncOperation` | `SyncConflictDetail`<br/>en `backend/app/modules/sync/service.py` | Mapeo a estado `CONFLICT` en IndexedDB | Mapeo a estado `CONFLICT` en SQLite |
+| 7.2 Bandeja de Operaciones Offline | CU28 | Boundary: `OfflineOperationsTray`<br/>Control: `TrayFilterController` | `GET /api/v1/sync/transactions/{client_op_id}` | `OfflineTransactionsTrayComponent`<br/>(Ruta `/offline-transactions`) | `OfflineOperationsScreen`<br/>con TabBar y Badges |
+| 7.2 Gestión de Cambios de Prendas (30 Días) | CU29 | Boundary: `ExchangeRouter`<br/>Control: `ExchangeService`<br/>Entidad: `InventoryMovement` | `backend/app/modules/commerce/router.py`<br/>(`POST /api/v1/sales/{id}/exchange`) | Integración en POS / Compras | Integración en Detalle de Venta |
+
+---
+
+## 17. Metodología ICONIX — Etapa 3: Inteligencia Artificial Generativa y Analítica Predictiva Multi-tenant
+
+La **Etapa 3** culmina la evolución de FashionStore como plataforma SaaS empresarial avanzada, incorporando capacidades de **Inteligencia Artificial Generativa** en lenguaje natural (escrito y voz), gobernadas por el plan de suscripción del tenant (`generative_reports_enabled`), junto con un motor de **Machine Learning supervisado** (predicción de demanda semanal mediante Ridge Regression con métricas MAE, RMSE y R²) y **Machine Learning no supervisado** (segmentación de clientes RFM mediante K-Means con Silhouette Score e Inercia), visualización gráfica adaptativa (`bar`, `line`, `pie`, `table`, `kpi`) y exportación dinámica a formatos oficiales Excel (.xlsx) y PDF (.pdf).
+
+---
+
+### 17.1 Modelo de Dominio Ampliado (IA Generativa, Suscripciones, Predicción de Demanda y Segmentación RFM)
+
+```mermaid
+classDiagram
+    class Tenant {
+        +int id
+        +string name
+        +string status
+    }
+
+    class SubscriptionPlan {
+        +int id
+        +string code
+        +string name
+        +int max_active_branches
+        +bool generative_reports_enabled
+    }
+
+    class Subscription {
+        +int id
+        +int tenant_id
+        +int plan_id
+        +string status
+        +datetime valid_from
+        +datetime valid_until
+    }
+
+    class Branch {
+        +int id
+        +int tenant_id
+        +string name
+    }
+
+    class Category {
+        +int id
+        +int tenant_id
+        +string name
+    }
+
+    class Product {
+        +int id
+        +int tenant_id
+        +int category_id
+        +string name
+        +decimal price
+    }
+
+    class Sale {
+        +int id
+        +int tenant_id
+        +int customer_id
+        +int branch_id
+        +string channel
+        +string status
+        +decimal total
+        +datetime created_at
+    }
+
+    class SaleItem {
+        +int id
+        +int sale_id
+        +int product_variant_id
+        +int quantity
+        +decimal unit_price
+        +decimal line_total
+    }
+
+    class ReportAssistantIntent {
+        +string kind
+        +string chart_type
+        +dict filters
+        +string reasoning
+    }
+
+    class DemandForecast {
+        +string target
+        +int horizon_weeks
+        +int branch_id
+        +double mae
+        +double rmse
+        +double r2_score
+        +list forecast_points
+        +string narrative
+    }
+
+    class CustomerSegment {
+        +int cluster_id
+        +string name
+        +int customer_count
+        +double percentage
+        +double avg_recency_days
+        +double avg_frequency
+        +double avg_monetary
+        +string suggested_action
+    }
+
+    class CustomerSegmentation {
+        +string algorithm
+        +int clusters_count
+        +double silhouette_score
+        +double inertia
+        +list segments
+        +string narrative
+    }
+
+    Tenant "1" --> "*" Subscription : historial
+    Subscription "*" --> "1" SubscriptionPlan : asigna plan
+    Tenant "1" --> "*" Branch : opera
+    Tenant "1" --> "*" Category : organiza
+    Tenant "1" --> "*" Product : cataloga
+    Tenant "1" --> "*" Sale : factura
+    Sale "1" --> "*" SaleItem : contiene
+    Tenant "1" ..> DemandForecast : genera proyecciones
+    Tenant "1" ..> CustomerSegmentation : segmenta clientes
+    CustomerSegmentation "1" --> "*" CustomerSegment : contiene clusters
+    Tenant "1" ..> ReportAssistantIntent : consulta con IA
+```
+
+---
+
+### 17.2 Diagramas de Robustez (Análisis BCE — Boundary, Control, Entity)
+
+#### 17.2.1 CU21: Generar Reportes Empresariales con IA en Lenguaje Natural (Escrito y Voz)
+
+```mermaid
+flowchart TD
+    Gerente((Gerente / Administrador))
+
+    subgraph Boundary["Frontera (Boundary)"]
+        UI_Web["Cycle3AdminComponent (Web Angular)"]
+        UI_Mob["ReportsScreen (Mobile Flutter)"]
+        VoiceInput["Web Speech API / Audio Recorder"]
+        ExportActions["Dynamic Export Buttons (PDF / Excel)"]
+    end
+
+    subgraph Control["Control"]
+        Guard["check_tenant_feature (generative_reports_enabled)"]
+        AudioTranscriber["transcribe_audio_prompt (Gemini Audio)"]
+        IntentClassifier["interpret_intent (Gemini LLM / Heuristic Fallback)"]
+        ReportExecutor["execute_tenant_report (Filtro estricto tenant_id)"]
+        NarrativeEngine["generate_executive_narrative"]
+    end
+
+    subgraph Entity["Entidad (Entity)"]
+        PlanDB[("SubscriptionPlan")]
+        SalesDB[("Sale / SaleItem")]
+        CatDB[("Category")]
+        InvDB[("Inventory")]
+    end
+
+    Gerente -->|1. Ingresar texto o dictar por voz| VoiceInput
+    VoiceInput -->|2. Transcribir texto| UI_Web
+    VoiceInput -->|2. Transcribir texto| UI_Mob
+    UI_Web -->|3. POST /reports/assistant| Guard
+    UI_Mob -->|3. POST /reports/assistant| Guard
+    Guard -->|Valida suscripción| PlanDB
+    Guard -->|4a. Si plan no incluye IA: HTTP 403 FEATURE_NOT_IN_PLAN| UI_Web
+    Guard -->|4b. Si plan incluye IA: autorizar| IntentClassifier
+    IntentClassifier -->|5. Extraer filtros y chart_type| ReportExecutor
+    ReportExecutor -->|6. Consultas SQL parametrizadas por tenant_id| SalesDB
+    ReportExecutor -->|6. Consultas SQL parametrizadas por tenant_id| CatDB
+    ReportExecutor -->|6. Consultas SQL parametrizadas por tenant_id| InvDB
+    ReportExecutor -->|7. Datos reales consolidados| NarrativeEngine
+    NarrativeEngine -->|8. Respuesta estructurada con narrativa ejecutiva| UI_Web
+    NarrativeEngine -->|8. Respuesta estructurada con narrativa ejecutiva| UI_Mob
+    UI_Web -->|9. Exportar a formato oficial| ExportActions
+```
+
+#### 17.2.2 CU30: Proyección Supervisada de Demanda Comercial con Ridge Regression
+
+```mermaid
+flowchart TD
+    Usuario((Analista / Gerente))
+
+    subgraph Boundary["Frontera (Boundary)"]
+        UI_Predictive["MLPredictiveDashboard / ReportsScreen"]
+    end
+
+    subgraph Control["Control"]
+        PlanCheck["check_tenant_feature (generative_reports_enabled)"]
+        DataExtractor["SyntheticDataService / RealSalesSeries"]
+        FeatureBuilder["build_lag_and_rolling_features"]
+        ModelTrainer["RidgeRegressionTrainer (scikit-learn)"]
+        MetricsEvaluator["evaluate_metrics (MAE, RMSE, R2)"]
+        Forecaster["forecast_demand (4 a 6 semanas)"]
+    end
+
+    subgraph Entity["Entidad (Entity)"]
+        TenantSales[("Tenant Sales History")]
+        ForecastResult[("DemandForecastResponse")]
+    end
+
+    Usuario -->|1. Solicitar proyeccion de demanda| UI_Predictive
+    UI_Predictive -->|2. GET /reports/ml/demand-forecast| PlanCheck
+    PlanCheck -->|3. Extraer serie temporal del tenant| DataExtractor
+    DataExtractor -->|Lee historial| TenantSales
+    DataExtractor -->|4. Construir rezagos temporales| FeatureBuilder
+    FeatureBuilder -->|5. Entrenar y regularizar L2| ModelTrainer
+    ModelTrainer -->|6. Calcular errores absolutos y cuadraticos| MetricsEvaluator
+    ModelTrainer -->|7. Proyectar semanas futuras con intervalo| Forecaster
+    Forecaster -->|8. Guardar resultado consolidado| ForecastResult
+    ForecastResult -->|9. Renderizar barras, intervalos y metricas MAE/RMSE| UI_Predictive
+```
+
+#### 17.2.3 CU31: Segmentación No Supervisada de Clientes con K-Means RFM
+
+```mermaid
+flowchart TD
+    GerenteMarketing((Gerente de Marketing))
+
+    subgraph Boundary["Frontera (Boundary)"]
+        UI_Segments["CustomerSegmentsCard / SegmentsGrid"]
+    end
+
+    subgraph Control["Control"]
+        PlanGuard["check_tenant_feature (generative_reports_enabled)"]
+        RFMCalculator["calculate_rfm_profiles (Recencia, Frecuencia, Valor)"]
+        Scaler["StandardScaler (Normalizacion z-score)"]
+        Clusterer["KMeans (n_clusters = 4)"]
+        SilhouetteEngine["evaluate_silhouette_and_inertia"]
+        ProfileMapper["assign_actionable_profiles"]
+    end
+
+    subgraph Entity["Entidad (Entity)"]
+        CustomersDB[("Sales / Customers Profile")]
+        SegmentsResult[("CustomerSegmentationResponse")]
+    end
+
+    GerenteMarketing -->|1. Consultar segmentacion de clientes| UI_Segments
+    UI_Segments -->|2. GET /reports/ml/customer-segments| PlanGuard
+    PlanGuard -->|3. Extraer metricas transaccionales de clientes| RFMCalculator
+    RFMCalculator -->|Lee transacciones| CustomersDB
+    RFMCalculator -->|4. Matriz numerica R-F-M| Scaler
+    Scaler -->|5. Matriz estandarizada| Clusterer
+    Clusterer -->|6. Calcular Silhouette Score e Inercia| SilhouetteEngine
+    Clusterer -->|7. Mapear clusters a perfiles de negocio| ProfileMapper
+    ProfileMapper -->|8. Armar respuesta con acciones recomendadas| SegmentsResult
+    SegmentsResult -->|9. Visualizar tarjetas de clusters y recomendaciones| UI_Segments
+```
+
+#### 17.2.4 CU32: Exportación Dinámica de Reportes Analíticos (Excel y PDF)
+
+```mermaid
+flowchart TD
+    Auditor((Auditor / Gerente))
+
+    subgraph Boundary["Frontera (Boundary)"]
+        UI_Report["AssistantReportView / Cycle3AdminComponent"]
+    end
+
+    subgraph Control["Control"]
+        ExportRouter["POST /reports/assistant/export/{format}"]
+        ExportService["export_dynamic_report"]
+        ExcelEngine["OpenPyXL Workbook Builder (Estilos Corporativos)"]
+        PDFEngine["ReportLab Canvas / Table Flowable Builder"]
+    end
+
+    subgraph Entity["Entidad (Entity)"]
+        ReportContent[("Structured Report Payload")]
+        BinaryOutput[("Dynamic Document Blob (.xlsx / .pdf)")]
+    end
+
+    Auditor -->|1. Clic en 'Exportar a Excel' o 'Exportar a PDF'| UI_Report
+    UI_Report -->|2. POST con payload del reporte actual| ExportRouter
+    ExportRouter -->|3. Despachar a generador| ExportService
+    ExportService -->|Formato = xlsx| ExcelEngine
+    ExportService -->|Formato = pdf| PDFEngine
+    ExcelEngine -->|Generar hojas, celdas y formulas contables| BinaryOutput
+    PDFEngine -->|Generar documento vectorial formal con logo y tabla| BinaryOutput
+    BinaryOutput -->|4. Descargar archivo binario en el navegador o dispositivo| UI_Report
+```
+
+---
+
+### 17.3 Diagramas de Secuencia de Diseño (Interacción Detallada)
+
+#### 17.3.1 Secuencia CU21: Consulta de Reportes con IA, Control de Plan SaaS y Sugerencia de Gráfico
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Gerente as Gerente / Administrador
+    participant UI as Web / Mobile UI
+    participant Router as ReportsRouter (/api/v1/reports/assistant)
+    participant Auth as Auth & Subscription Guard
+    participant AI as AIService (Gemini / Heuristic)
+    participant Service as ReportsService
+    participant DB as RDS PostgreSQL
+
+    Gerente->>UI: Escribir o dictar: "¿Qué categorías generaron mayores ingresos este período?"
+    UI->>Router: POST /reports/assistant {prompt: "..."} + JWT
+    Router->>Auth: require_permission("reports.read") + check_tenant_feature("generative_reports_enabled")
+    alt Plan sin suscripción generativa (Plan Básico)
+        Auth-->>Router: HTTPException 403 FEATURE_NOT_IN_PLAN
+        Router-->>UI: 403 Forbidden ("Los reportes generativos con IA no están incluidos en su plan")
+        UI-->>Gerente: Muestra banner informativo para actualizar al Plan Profesional
+    else Plan con suscripción habilitada (Plan Profesional)
+        Auth-->>Router: Autorizado (tenant_id = 1)
+        Router->>AI: interpret_intent(prompt, filters)
+        AI->>AI: Reconoce kind = "revenue_by_category", chart_type = "pie"
+        AI-->>Router: ReportAssistantIntent
+        Router->>Service: revenue_by_category(db, tenant_id=1, filters)
+        Service->>DB: SELECT c.name, SUM(si.quantity), SUM(si.line_total) FROM ventas v JOIN detalles_venta si JOIN ... WHERE v.tenant_id=1 AND v.status IN ('CONFIRMED','COMPLETED') GROUP BY c.id
+        DB-->>Service: Lista de categorías, unidades e ingresos reales
+        Service-->>Router: data: [ {category_name: "Vestidos Fiesta", total_revenue: 3500}, ... ]
+        Router->>AI: generate_executive_narrative(kind, data)
+        AI-->>Router: "La categoría Vestidos Fiesta lidera con Bs 3,500..."
+        Router-->>UI: 200 OK {intent, chart_type: "pie", narrative, data}
+        UI->>UI: Renderiza gráfico Donut/Pie con leyenda de porcentajes y síntesis ejecutiva
+        UI-->>Gerente: Presentación visual interactiva y botones de exportación
+    end
+```
+
+#### 17.3.2 Secuencia CU30: Inferencia y Evaluación de Modelo Supervisado de Demanda (Ridge Regression)
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Analista as Analista de Operaciones
+    participant UI as ML Dashboard (Web / Mobile)
+    participant Router as ReportsRouter (/api/v1/reports/ml/demand-forecast)
+    participant Service as DemandForecastService
+    participant Synth as SyntheticDataService
+    participant DB as RDS PostgreSQL
+
+    Analista->>UI: Clic en 'Actualizar Proyección de Demanda'
+    UI->>Router: GET /reports/ml/demand-forecast?weeks_ahead=6 + JWT
+    Router->>Router: Validar tenant_id y entitlement
+    Router->>Service: forecast_demand(db, tenant_id=1, branch_id, weeks_ahead=6)
+    Service->>DB: Consultar serie histórica de ventas del tenant
+    alt Datos reales insuficientes (< 30 días)
+        Service->>Synth: generate_sales_series(db, tenant_id=1, days=90)
+        Synth-->>Service: Serie aumentada calibrada al tenant
+    end
+    Service->>Service: Construir características (lag_1, lag_2, rolling_mean_7, rolling_mean_14)
+    Service->>Service: train_test_split (80% train, 20% test)
+    Service->>Service: Ridge(alpha=1.0).fit(X_train, y_train)
+    Service->>Service: Evaluar métricas: MAE, RMSE, R²
+    Service->>Service: Proyectar semanas futuras con intervalo [lower_bound, upper_bound]
+    Service-->>Router: DemandForecastResponse {target, horizon_weeks: 6, metrics: {mae, rmse, r2}, forecast}
+    Router-->>UI: 200 OK JSON
+    UI->>UI: Renderiza chips MAE/RMSE y gráfico de barras con proyección semanal
+    UI-->>Analista: Visualización ejecutiva de demanda futura
+```
+
+#### 17.3.3 Secuencia CU31: Segmentación No Supervisada K-Means RFM y Agrupación de Clientes
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Marketing as Encargado de Marketing
+    participant UI as CustomerSegmentsView (Web / Mobile)
+    participant Router as ReportsRouter (/api/v1/reports/ml/customer-segments)
+    participant Service as CustomerSegmentationService
+    participant Synth as SyntheticDataService
+    participant DB as RDS PostgreSQL
+
+    Marketing->>UI: Visualizar 'Segmentación Inteligente de Clientes'
+    UI->>Router: GET /reports/ml/customer-segments?n_clusters=4 + JWT
+    Router->>Service: segment_customers(db, tenant_id=1, n_clusters=4)
+    Service->>DB: SELECT customer_id, MAX(created_at), COUNT(id), SUM(total) FROM ventas WHERE tenant_id=1 GROUP BY customer_id
+    DB-->>Service: Perfiles RFM brutos de clientes
+    alt Perfiles < 20
+        Service->>Synth: generate_customer_rfm_profiles(db, tenant_id=1, num_customers=60)
+        Synth-->>Service: Perfiles sintéticos aumentados
+    end
+    Service->>Service: StandardScaler().fit_transform(RFM_matrix)
+    Service->>Service: KMeans(n_clusters=4, random_state=42).fit(scaled_data)
+    Service->>Service: silhouette_score(scaled_data, labels) + inertia_
+    Service->>Service: Asignar nombres y acciones: VIP/Champions, Leales, En Riesgo, Ocasionales
+    Service-->>Router: CustomerSegmentationResponse {algorithm, clusters_count: 4, silhouette_score, segments}
+    Router-->>UI: 200 OK JSON
+    UI->>UI: Renderiza tarjetas por cluster con badges RFM y recomendaciones comerciales
+    UI-->>Marketing: Tablero interactivo de clientes para fidelización
+```
+
+#### 17.3.4 Secuencia CU32: Exportación Dinámica a Formatos XLSX y PDF
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Auditor as Auditor / Directivo
+    participant UI as Cycle3AdminComponent / ReportsScreen
+    participant Router as ReportsRouter (/reports/assistant/export/{format})
+    participant Export as ExportService
+    participant OpenPyXL as OpenPyXL Engine
+    participant ReportLab as ReportLab Engine
+
+    Auditor->>UI: Clic en "Exportar reporte IA a Excel"
+    UI->>Router: POST /reports/assistant/export/xlsx {prompt, filters}
+    Router->>Router: Ejecutar reporte dinámico correspondiente
+    Router->>Export: export_dynamic_report(title, headers, rows, narrative, format_name="xlsx")
+    Export->>OpenPyXL: Crear libro Excel con cabecera corporativa, bordes finos y tabla con estilo
+    OpenPyXL-->>Export: Bytes binarios .xlsx
+    Export-->>Router: DynamicExportResult (application/vnd.openxmlformats..., bytes)
+    Router-->>UI: 200 OK (Content-Disposition: attachment; filename="reporte_ejecutivo.xlsx")
+    UI->>UI: saveBlob(blob, "reporte_ejecutivo.xlsx")
+    UI-->>Auditor: Descarga automática de la planilla Excel con formato contable oficial
+```
+
+---
+
+### 17.4 Matriz de Trazabilidad Actualizada (Etapa 3)
+
+| Requisito Examen Parcial 2 | Caso de Uso | Elemento ICONIX (BCE) | Componente en Backend | Componente en Web (Angular) | Componente en Móvil (Flutter) |
+|---|---|---|---|---|---|
+| **7.3 Reportes Generativos con IA** | CU21 | Boundary: `CopilotUI`<br/>Control: `interpret_intent`<br/>Entidad: `ReportAssistantResponse` | `backend/app/modules/reports/ai_service.py`<br/>`router.py` (`POST /reports/assistant`) | `Cycle3AdminComponent`<br/>`AdminService.reportAssistant` | `ReportsScreen`<br/>`ReportsRepository.askAssistant` |
+| **7.3 Dictado y Entrada por Voz** | CU21 | Boundary: `VoiceInputBoundary`<br/>Control: `transcribe_audio_prompt` | `backend/app/modules/reports/ai_service.py`<br/>`POST /reports/transcribe-audio` | Integración Web Speech API (`webkitSpeechRecognition`) | Botón `Icons.mic` con dictado y reconocimiento |
+| **7.3 Control de Suscripciones SaaS** | CU21 | Control: `check_tenant_feature`<br/>Entidad: `SubscriptionPlan` | `backend/app/modules/subscriptions/service.py`<br/>HTTP `403 FEATURE_NOT_IN_PLAN` | Manejo de excepción 403 con alerta de upgrade | Manejo de excepción 403 con alerta de upgrade |
+| **7.3 Los 4 Reportes Obligatorios Aislados** | CU21 | Control: `execute_tenant_report`<br/>Entidad: `Sale`, `Inventory`, `Category` | `backend/app/modules/reports/service.py`<br/>(ventas sucursal, top productos, bajo stock, categorías) | Pestañas y selector dinámico de intenciones | Filtro y chips de consultas rápidas |
+| **7.3 Visualización Dinámica Adaptativa** | CU21 | Boundary: `DynamicChartViewer`<br/>Control: `chart_type selector` | `backend/app/modules/reports/schemas.py`<br/>(`bar`, `line`, `pie`, `table`, `kpi`) | Directiva condicional de renderizado (`pie`, `bar`, `table`) | Widgets dinámicos (`pie breakdown`, `bars`, `table`) |
+| **7.3 Exportación Dinámica a PDF y Excel** | CU32 | Boundary: `ExportButtons`<br/>Control: `export_dynamic_report`<br/>Entidad: `ReportBlob` | `backend/app/modules/reports/export_service.py`<br/>`POST /reports/assistant/export/{format}` | Botones `Exportar a Excel` y `Exportar a PDF` | Endpoint parametrizado para descarga |
+| **7.3 Generación de Datos Sintéticos** | CU30 / CU31 | Control: `SyntheticDataService`<br/>Entidad: `SalesSeries`, `RFMProfile` | `backend/app/modules/reports/ml_service.py`<br/>(`generate_sales_series`, `generate_customer_rfm_profiles`) | Visualización transparente en dashboard ML | Visualización transparente en dashboard ML |
+| **7.3 Modelo Supervisado: Predicción Demanda** | CU30 | Control: `DemandForecastService`<br/>Entidad: `DemandForecastResponse` | `backend/app/modules/reports/ml_service.py`<br/>`GET /reports/ml/demand-forecast` (Ridge, MAE, RMSE, R²) | Tarjeta de proyección semanal con barras de progreso | Tarjeta de proyección semanal con barras de progreso |
+| **7.3 Modelo No Supervisado: Segmentación RFM** | CU31 | Control: `CustomerSegmentationService`<br/>Entidad: `CustomerSegmentationResponse` | `backend/app/modules/reports/ml_service.py`<br/>`GET /reports/ml/customer-segments` (K-Means, Silhouette) | Tarjetas de perfiles (Champions, Leales, Riesgo) | Tarjetas de perfiles (Champions, Leales, Riesgo) |
+| **7.3 Reentrenamiento de Modelos ML** | CU30 / CU31 | Control: `retrain_models`<br/>Boundary: `TrainButton` | `backend/app/modules/reports/router.py`<br/>`POST /reports/ml/train` | Botón `Reentrenar Modelos ML` con estado asíncrono | Botón `Reentrenar` con notificación SnackBar |
+
+
+
+
 

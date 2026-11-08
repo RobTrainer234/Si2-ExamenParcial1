@@ -1,0 +1,2653 @@
+{
+  "diag_10": {
+    "id": 10,
+    "name": "DISEÑO CONCEPTUAL DE LA BASE DE DATOS",
+    "type": "Class",
+    "package_id": 8,
+    "classes": [
+      {
+        "id": 85,
+        "name": "Administrador",
+        "type": "Class",
+        "stereotype": "",
+        "attributes": [
+          {
+            "name": "ci",
+            "type": "int",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "eliminado",
+            "type": "bool",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "email",
+            "type": "string",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "id",
+            "type": "int",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "imagen",
+            "type": "string",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "nombre",
+            "type": "string",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "password",
+            "type": "string",
+            "visibility": "Private",
+            "notes": ""
+          }
+        ],
+        "methods": [],
+        "left": 350,
+        "top": -60,
+        "right": 520,
+        "bottom": -240
+      },
+      {
+        "id": 86,
+        "name": "Bitacora",
+        "type": "Class",
+        "stereotype": "",
+        "attributes": [
+          {
+            "name": "accion",
+            "type": "string",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "id",
+            "type": "int",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "descripcion",
+            "type": "string",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "entidad_id",
+            "type": "int",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "fecha_creacion",
+            "type": "datetime",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "ip_origen",
+            "type": "string",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "tipo_entidad",
+            "type": "string",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "usuario_id",
+            "type": "int",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "valores_anteriores",
+            "type": "json",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "valores_nuevos",
+            "type": "json",
+            "visibility": "Private",
+            "notes": ""
+          }
+        ],
+        "methods": [],
+        "left": 640,
+        "top": -90,
+        "right": 790,
+        "bottom": -256
+      },
+      {
+        "id": 87,
+        "name": "Categoria",
+        "type": "Class",
+        "stereotype": "",
+        "attributes": [
+          {
+            "name": "activo",
+            "type": "bool",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "descripcion",
+            "type": "string",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "eliminado",
+            "type": "bool",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "id",
+            "type": "int",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "nombre",
+            "type": "string",
+            "visibility": "Private",
+            "notes": ""
+          }
+        ],
+        "methods": [],
+        "left": 60,
+        "top": -260,
+        "right": 230,
+        "bottom": -420
+      },
+      {
+        "id": 88,
+        "name": "Producto",
+        "type": "Class",
+        "stereotype": "",
+        "attributes": [
+          {
+            "name": "activo",
+            "type": "bool",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "descripcion",
+            "type": "string",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "eliminado",
+            "type": "bool",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "id",
+            "type": "int",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "imagen",
+            "type": "string",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "nombre",
+            "type": "string",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "precio",
+            "type": "decimal",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "rank",
+            "type": "int",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "stock",
+            "type": "int",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "categoria_id",
+            "type": "int",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "codigo",
+            "type": "string",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "coleccion_id",
+            "type": "int",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "fecha_creacion",
+            "type": "datetime",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "temporada_id",
+            "type": "int",
+            "visibility": "Private",
+            "notes": ""
+          }
+        ],
+        "methods": [],
+        "left": 60,
+        "top": -530,
+        "right": 230,
+        "bottom": -770
+      },
+      {
+        "id": 89,
+        "name": "Descuento",
+        "type": "Class",
+        "stereotype": "",
+        "attributes": [
+          {
+            "name": "id",
+            "type": "int",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "nombre",
+            "type": "string",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "porcentaje",
+            "type": "float",
+            "visibility": "Private",
+            "notes": ""
+          }
+        ],
+        "methods": [],
+        "left": 60,
+        "top": -860,
+        "right": 230,
+        "bottom": -980
+      },
+      {
+        "id": 90,
+        "name": "Usuario",
+        "type": "Class",
+        "stereotype": "",
+        "attributes": [
+          {
+            "name": "email",
+            "type": "string",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "id",
+            "type": "int",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "imagen",
+            "type": "string",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "nombre",
+            "type": "string",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "password",
+            "type": "string",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "activo",
+            "type": "bool",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "fecha_creacion",
+            "type": "datetime",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "nombre_completo",
+            "type": "string",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "rol_id",
+            "type": "int",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "sucursal_id",
+            "type": "int",
+            "visibility": "Private",
+            "notes": ""
+          }
+        ],
+        "methods": [],
+        "left": 700,
+        "top": -300,
+        "right": 870,
+        "bottom": -470
+      },
+      {
+        "id": 91,
+        "name": "Favorito",
+        "type": "Class",
+        "stereotype": "",
+        "attributes": [
+          {
+            "name": "es_favorito",
+            "type": "bool",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "puntaje",
+            "type": "int",
+            "visibility": "Private",
+            "notes": ""
+          }
+        ],
+        "methods": [],
+        "left": 310,
+        "top": -430,
+        "right": 460,
+        "bottom": -530
+      },
+      {
+        "id": 92,
+        "name": "Venta",
+        "type": "Class",
+        "stereotype": "",
+        "attributes": [
+          {
+            "name": "created_at",
+            "type": "datetime",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "direccion",
+            "type": "string",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "id",
+            "type": "int",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "total",
+            "type": "decimal",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "cajero_id",
+            "type": "int",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "canal",
+            "type": "string",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "descuento",
+            "type": "decimal",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "estado",
+            "type": "string",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "fecha_venta",
+            "type": "datetime",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "subtotal",
+            "type": "decimal",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "sucursal_id",
+            "type": "int",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "usuario_id",
+            "type": "int",
+            "visibility": "Private",
+            "notes": ""
+          }
+        ],
+        "methods": [],
+        "left": 700,
+        "top": -570,
+        "right": 870,
+        "bottom": -762
+      },
+      {
+        "id": 93,
+        "name": "Detalle",
+        "type": "Class",
+        "stereotype": "",
+        "attributes": [
+          {
+            "name": "cantidad",
+            "type": "int",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "created_at",
+            "type": "datetime",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "precio",
+            "type": "float",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "total",
+            "type": "float",
+            "visibility": "Private",
+            "notes": ""
+          }
+        ],
+        "methods": [],
+        "left": 380,
+        "top": -690,
+        "right": 530,
+        "bottom": -830
+      },
+      {
+        "id": 94,
+        "name": "Pago",
+        "type": "Class",
+        "stereotype": "",
+        "attributes": [
+          {
+            "name": "apellido",
+            "type": "string",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "created_at",
+            "type": "datetime",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "id",
+            "type": "int",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "nombre",
+            "type": "string",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "total",
+            "type": "decimal",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "transaction_id",
+            "type": "string",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "cambio",
+            "type": "decimal",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "estado",
+            "type": "string",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "fecha_pago",
+            "type": "datetime",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "metodo",
+            "type": "string",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "monto_recibido",
+            "type": "decimal",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "proveedor",
+            "type": "string",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "referencia",
+            "type": "string",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "venta_id",
+            "type": "int",
+            "visibility": "Private",
+            "notes": ""
+          }
+        ],
+        "methods": [],
+        "left": 1000,
+        "top": -490,
+        "right": 1180,
+        "bottom": -708
+      },
+      {
+        "id": 95,
+        "name": "MetodoPago",
+        "type": "Class",
+        "stereotype": "",
+        "attributes": [
+          {
+            "name": "activo",
+            "type": "bool",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "descripcion",
+            "type": "string",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "eliminado",
+            "type": "bool",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "id",
+            "type": "int",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "nombre",
+            "type": "string",
+            "visibility": "Private",
+            "notes": ""
+          }
+        ],
+        "methods": [],
+        "left": 1000,
+        "top": -740,
+        "right": 1180,
+        "bottom": -900
+      },
+      {
+        "id": 96,
+        "name": "EmpresaEnvio",
+        "type": "Class",
+        "stereotype": "",
+        "attributes": [
+          {
+            "name": "activo",
+            "type": "bool",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "eliminado",
+            "type": "bool",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "id",
+            "type": "int",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "nombre",
+            "type": "string",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "precio",
+            "type": "float",
+            "visibility": "Private",
+            "notes": ""
+          }
+        ],
+        "methods": [],
+        "left": 700,
+        "top": -810,
+        "right": 870,
+        "bottom": -970
+      }
+    ],
+    "links": [
+      {
+        "id": 96,
+        "name": "tiene",
+        "type": "Association",
+        "client": "Administrador",
+        "client_cardinality": "1",
+        "client_role": "",
+        "supplier": "Bitacora",
+        "supplier_cardinality": "1..*",
+        "supplier_role": ""
+      },
+      {
+        "id": 97,
+        "name": "clasifica",
+        "type": "Association",
+        "client": "Categoria",
+        "client_cardinality": "1",
+        "client_role": "",
+        "supplier": "Producto",
+        "supplier_cardinality": "0..*",
+        "supplier_role": ""
+      },
+      {
+        "id": 98,
+        "name": "tiene",
+        "type": "Association",
+        "client": "Producto",
+        "client_cardinality": "1..*",
+        "client_role": "",
+        "supplier": "Descuento",
+        "supplier_cardinality": "1",
+        "supplier_role": ""
+      },
+      {
+        "id": 99,
+        "name": "tiene",
+        "type": "Association",
+        "client": "Usuario",
+        "client_cardinality": "0..*",
+        "client_role": "",
+        "supplier": "Producto",
+        "supplier_cardinality": "0..*",
+        "supplier_role": ""
+      },
+      {
+        "id": 100,
+        "name": "",
+        "type": "Dependency",
+        "client": "Favorito",
+        "client_cardinality": "",
+        "client_role": "",
+        "supplier": "Producto",
+        "supplier_cardinality": "",
+        "supplier_role": ""
+      },
+      {
+        "id": 101,
+        "name": "realiza",
+        "type": "Association",
+        "client": "Usuario",
+        "client_cardinality": "1",
+        "client_role": "",
+        "supplier": "Venta",
+        "supplier_cardinality": "0..*",
+        "supplier_role": ""
+      },
+      {
+        "id": 102,
+        "name": "genera",
+        "type": "Association",
+        "client": "Producto",
+        "client_cardinality": "1..*",
+        "client_role": "",
+        "supplier": "Venta",
+        "supplier_cardinality": "1..*",
+        "supplier_role": ""
+      },
+      {
+        "id": 103,
+        "name": "",
+        "type": "Dependency",
+        "client": "Detalle",
+        "client_cardinality": "",
+        "client_role": "",
+        "supplier": "Venta",
+        "supplier_cardinality": "",
+        "supplier_role": ""
+      },
+      {
+        "id": 104,
+        "name": "cancela_con",
+        "type": "Association",
+        "client": "Venta",
+        "client_cardinality": "1",
+        "client_role": "",
+        "supplier": "Pago",
+        "supplier_cardinality": "1..*",
+        "supplier_role": ""
+      },
+      {
+        "id": 105,
+        "name": "utiliza",
+        "type": "Association",
+        "client": "Venta",
+        "client_cardinality": "1..*",
+        "client_role": "",
+        "supplier": "MetodoPago",
+        "supplier_cardinality": "1",
+        "supplier_role": ""
+      },
+      {
+        "id": 106,
+        "name": "utiliza",
+        "type": "Association",
+        "client": "Venta",
+        "client_cardinality": "1..*",
+        "client_role": "",
+        "supplier": "EmpresaEnvio",
+        "supplier_cardinality": "1",
+        "supplier_role": ""
+      },
+      {
+        "id": 109,
+        "name": "registra",
+        "type": "Association",
+        "client": "Usuario",
+        "client_cardinality": "1",
+        "client_role": "",
+        "supplier": "Bitacora",
+        "supplier_cardinality": "0..*",
+        "supplier_role": ""
+      }
+    ]
+  },
+  "diag_11": {
+    "id": 11,
+    "name": "DISEÑO CONCEPTUAL DE LA BASE DE DATOS (FASHIONSTORE COMPLETO)",
+    "type": "Class",
+    "package_id": 8,
+    "classes": [
+      {
+        "id": 97,
+        "name": "Rol",
+        "type": "Class",
+        "stereotype": "",
+        "attributes": [
+          {
+            "name": "activo",
+            "type": "bool",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "codigo",
+            "type": "string",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "id",
+            "type": "int",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "nombre",
+            "type": "string",
+            "visibility": "Private",
+            "notes": ""
+          }
+        ],
+        "methods": [],
+        "left": 310,
+        "top": -40,
+        "right": 490,
+        "bottom": -160
+      },
+      {
+        "id": 90,
+        "name": "Usuario",
+        "type": "Class",
+        "stereotype": "",
+        "attributes": [
+          {
+            "name": "email",
+            "type": "string",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "id",
+            "type": "int",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "imagen",
+            "type": "string",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "nombre",
+            "type": "string",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "password",
+            "type": "string",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "activo",
+            "type": "bool",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "fecha_creacion",
+            "type": "datetime",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "nombre_completo",
+            "type": "string",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "rol_id",
+            "type": "int",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "sucursal_id",
+            "type": "int",
+            "visibility": "Private",
+            "notes": ""
+          }
+        ],
+        "methods": [],
+        "left": 50,
+        "top": -310,
+        "right": 260,
+        "bottom": -510
+      },
+      {
+        "id": 86,
+        "name": "Bitacora",
+        "type": "Class",
+        "stereotype": "",
+        "attributes": [
+          {
+            "name": "accion",
+            "type": "string",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "id",
+            "type": "int",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "descripcion",
+            "type": "string",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "entidad_id",
+            "type": "int",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "fecha_creacion",
+            "type": "datetime",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "ip_origen",
+            "type": "string",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "tipo_entidad",
+            "type": "string",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "usuario_id",
+            "type": "int",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "valores_anteriores",
+            "type": "json",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "valores_nuevos",
+            "type": "json",
+            "visibility": "Private",
+            "notes": ""
+          }
+        ],
+        "methods": [],
+        "left": 570,
+        "top": -40,
+        "right": 770,
+        "bottom": -270
+      },
+      {
+        "id": 98,
+        "name": "Ciudad",
+        "type": "Class",
+        "stereotype": "",
+        "attributes": [
+          {
+            "name": "activo",
+            "type": "bool",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "id",
+            "type": "int",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "nombre",
+            "type": "string",
+            "visibility": "Private",
+            "notes": ""
+          }
+        ],
+        "methods": [],
+        "left": 50,
+        "top": -40,
+        "right": 230,
+        "bottom": -150
+      },
+      {
+        "id": 99,
+        "name": "Sucursal",
+        "type": "Class",
+        "stereotype": "",
+        "attributes": [
+          {
+            "name": "activo",
+            "type": "bool",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "ciudad_id",
+            "type": "int",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "direccion",
+            "type": "string",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "id",
+            "type": "int",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "nombre",
+            "type": "string",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "telefono",
+            "type": "string",
+            "visibility": "Private",
+            "notes": ""
+          }
+        ],
+        "methods": [],
+        "left": 830,
+        "top": -40,
+        "right": 1030,
+        "bottom": -200
+      },
+      {
+        "id": 87,
+        "name": "Categoria",
+        "type": "Class",
+        "stereotype": "",
+        "attributes": [
+          {
+            "name": "activo",
+            "type": "bool",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "descripcion",
+            "type": "string",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "eliminado",
+            "type": "bool",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "id",
+            "type": "int",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "nombre",
+            "type": "string",
+            "visibility": "Private",
+            "notes": ""
+          }
+        ],
+        "methods": [],
+        "left": 570,
+        "top": -310,
+        "right": 770,
+        "bottom": -430
+      },
+      {
+        "id": 100,
+        "name": "Temporada",
+        "type": "Class",
+        "stereotype": "",
+        "attributes": [
+          {
+            "name": "activo",
+            "type": "bool",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "fecha_fin",
+            "type": "date",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "fecha_inicio",
+            "type": "date",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "id",
+            "type": "int",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "nombre",
+            "type": "string",
+            "visibility": "Private",
+            "notes": ""
+          }
+        ],
+        "methods": [],
+        "left": 50,
+        "top": -610,
+        "right": 250,
+        "bottom": -750
+      },
+      {
+        "id": 101,
+        "name": "Coleccion",
+        "type": "Class",
+        "stereotype": "",
+        "attributes": [
+          {
+            "name": "activo",
+            "type": "bool",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "descripcion",
+            "type": "string",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "id",
+            "type": "int",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "nombre",
+            "type": "string",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "temporada_id",
+            "type": "int",
+            "visibility": "Private",
+            "notes": ""
+          }
+        ],
+        "methods": [],
+        "left": 1090,
+        "top": -610,
+        "right": 1290,
+        "bottom": -750
+      },
+      {
+        "id": 102,
+        "name": "Proveedor",
+        "type": "Class",
+        "stereotype": "",
+        "attributes": [
+          {
+            "name": "activo",
+            "type": "bool",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "email",
+            "type": "string",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "id",
+            "type": "int",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "nit",
+            "type": "string",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "razon_social",
+            "type": "string",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "telefono",
+            "type": "string",
+            "visibility": "Private",
+            "notes": ""
+          }
+        ],
+        "methods": [],
+        "left": 310,
+        "top": -870,
+        "right": 510,
+        "bottom": -1030
+      },
+      {
+        "id": 88,
+        "name": "Producto",
+        "type": "Class",
+        "stereotype": "",
+        "attributes": [
+          {
+            "name": "activo",
+            "type": "bool",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "descripcion",
+            "type": "string",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "eliminado",
+            "type": "bool",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "id",
+            "type": "int",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "imagen",
+            "type": "string",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "nombre",
+            "type": "string",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "precio",
+            "type": "decimal",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "rank",
+            "type": "int",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "stock",
+            "type": "int",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "categoria_id",
+            "type": "int",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "codigo",
+            "type": "string",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "coleccion_id",
+            "type": "int",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "fecha_creacion",
+            "type": "datetime",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "temporada_id",
+            "type": "int",
+            "visibility": "Private",
+            "notes": ""
+          }
+        ],
+        "methods": [],
+        "left": 830,
+        "top": -310,
+        "right": 1040,
+        "bottom": -570
+      },
+      {
+        "id": 103,
+        "name": "ImagenProducto",
+        "type": "Class",
+        "stereotype": "",
+        "attributes": [
+          {
+            "name": "es_principal",
+            "type": "bool",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "id",
+            "type": "int",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "orden",
+            "type": "int",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "producto_id",
+            "type": "int",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "url_imagen",
+            "type": "string",
+            "visibility": "Private",
+            "notes": ""
+          }
+        ],
+        "methods": [],
+        "left": 1090,
+        "top": -40,
+        "right": 1280,
+        "bottom": -180
+      },
+      {
+        "id": 104,
+        "name": "VarianteProducto",
+        "type": "Class",
+        "stereotype": "",
+        "attributes": [
+          {
+            "name": "activo",
+            "type": "bool",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "codigo_barra",
+            "type": "string",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "color_id",
+            "type": "int",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "id",
+            "type": "int",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "precio_adicional",
+            "type": "decimal",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "producto_id",
+            "type": "int",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "sku",
+            "type": "string",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "talla_id",
+            "type": "int",
+            "visibility": "Private",
+            "notes": ""
+          }
+        ],
+        "methods": [],
+        "left": 1350,
+        "top": -610,
+        "right": 1570,
+        "bottom": -830
+      },
+      {
+        "id": 105,
+        "name": "Talla",
+        "type": "Class",
+        "stereotype": "",
+        "attributes": [
+          {
+            "name": "activo",
+            "type": "bool",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "id",
+            "type": "int",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "nombre",
+            "type": "string",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "orden",
+            "type": "int",
+            "visibility": "Private",
+            "notes": ""
+          }
+        ],
+        "methods": [],
+        "left": 1090,
+        "top": -870,
+        "right": 1250,
+        "bottom": -990
+      },
+      {
+        "id": 106,
+        "name": "Color",
+        "type": "Class",
+        "stereotype": "",
+        "attributes": [
+          {
+            "name": "activo",
+            "type": "bool",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "codigo_hex",
+            "type": "string",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "id",
+            "type": "int",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "nombre",
+            "type": "string",
+            "visibility": "Private",
+            "notes": ""
+          }
+        ],
+        "methods": [],
+        "left": 1350,
+        "top": -870,
+        "right": 1510,
+        "bottom": -990
+      },
+      {
+        "id": 107,
+        "name": "Inventario",
+        "type": "Class",
+        "stereotype": "",
+        "attributes": [
+          {
+            "name": "id",
+            "type": "int",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "stock_fisico",
+            "type": "int",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "stock_reservado",
+            "type": "int",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "sucursal_id",
+            "type": "int",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "variante_id",
+            "type": "int",
+            "visibility": "Private",
+            "notes": ""
+          }
+        ],
+        "methods": [],
+        "left": 310,
+        "top": -610,
+        "right": 510,
+        "bottom": -760
+      },
+      {
+        "id": 108,
+        "name": "MovimientoInventario",
+        "type": "Class",
+        "stereotype": "",
+        "attributes": [
+          {
+            "name": "cantidad",
+            "type": "int",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "creado_por",
+            "type": "int",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "fecha_creacion",
+            "type": "datetime",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "id",
+            "type": "int",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "inventario_id",
+            "type": "int",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "motivo",
+            "type": "string",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "stock_anterior",
+            "type": "int",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "stock_posterior",
+            "type": "int",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "tipo_movimiento",
+            "type": "string",
+            "visibility": "Private",
+            "notes": ""
+          }
+        ],
+        "methods": [],
+        "left": 50,
+        "top": -870,
+        "right": 270,
+        "bottom": -1100
+      },
+      {
+        "id": 109,
+        "name": "Carrito",
+        "type": "Class",
+        "stereotype": "",
+        "attributes": [
+          {
+            "name": "estado",
+            "type": "string",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "fecha_creacion",
+            "type": "datetime",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "id",
+            "type": "int",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "usuario_id",
+            "type": "int",
+            "visibility": "Private",
+            "notes": ""
+          }
+        ],
+        "methods": [],
+        "left": 1350,
+        "top": -310,
+        "right": 1530,
+        "bottom": -430
+      },
+      {
+        "id": 110,
+        "name": "DetalleCarrito",
+        "type": "Class",
+        "stereotype": "",
+        "attributes": [
+          {
+            "name": "cantidad",
+            "type": "int",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "carrito_id",
+            "type": "int",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "id",
+            "type": "int",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "precio_unitario",
+            "type": "decimal",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "variante_id",
+            "type": "int",
+            "visibility": "Private",
+            "notes": ""
+          }
+        ],
+        "methods": [],
+        "left": 1090,
+        "top": -310,
+        "right": 1290,
+        "bottom": -460
+      },
+      {
+        "id": 111,
+        "name": "Reserva",
+        "type": "Class",
+        "stereotype": "",
+        "attributes": [
+          {
+            "name": "codigo_reserva",
+            "type": "string",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "estado",
+            "type": "string",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "expira_en",
+            "type": "datetime",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "fecha_programada",
+            "type": "datetime",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "id",
+            "type": "int",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "notas",
+            "type": "string",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "sucursal_id",
+            "type": "int",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "usuario_id",
+            "type": "int",
+            "visibility": "Private",
+            "notes": ""
+          }
+        ],
+        "methods": [],
+        "left": 570,
+        "top": -610,
+        "right": 780,
+        "bottom": -810
+      },
+      {
+        "id": 112,
+        "name": "DetalleReserva",
+        "type": "Class",
+        "stereotype": "",
+        "attributes": [
+          {
+            "name": "cantidad",
+            "type": "int",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "id",
+            "type": "int",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "precio_unitario",
+            "type": "decimal",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "reserva_id",
+            "type": "int",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "variante_id",
+            "type": "int",
+            "visibility": "Private",
+            "notes": ""
+          }
+        ],
+        "methods": [],
+        "left": 570,
+        "top": -870,
+        "right": 780,
+        "bottom": -1010
+      },
+      {
+        "id": 92,
+        "name": "Venta",
+        "type": "Class",
+        "stereotype": "",
+        "attributes": [
+          {
+            "name": "created_at",
+            "type": "datetime",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "direccion",
+            "type": "string",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "id",
+            "type": "int",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "total",
+            "type": "decimal",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "cajero_id",
+            "type": "int",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "canal",
+            "type": "string",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "descuento",
+            "type": "decimal",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "estado",
+            "type": "string",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "fecha_venta",
+            "type": "datetime",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "subtotal",
+            "type": "decimal",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "sucursal_id",
+            "type": "int",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "usuario_id",
+            "type": "int",
+            "visibility": "Private",
+            "notes": ""
+          }
+        ],
+        "methods": [],
+        "left": 310,
+        "top": -310,
+        "right": 520,
+        "bottom": -570
+      },
+      {
+        "id": 113,
+        "name": "DetalleVenta",
+        "type": "Class",
+        "stereotype": "",
+        "attributes": [
+          {
+            "name": "cantidad",
+            "type": "int",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "descuento",
+            "type": "decimal",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "id",
+            "type": "int",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "precio_unitario",
+            "type": "decimal",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "total_linea",
+            "type": "decimal",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "variante_id",
+            "type": "int",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "venta_id",
+            "type": "int",
+            "visibility": "Private",
+            "notes": ""
+          }
+        ],
+        "methods": [],
+        "left": 830,
+        "top": -610,
+        "right": 1040,
+        "bottom": -780
+      },
+      {
+        "id": 94,
+        "name": "Pago",
+        "type": "Class",
+        "stereotype": "",
+        "attributes": [
+          {
+            "name": "apellido",
+            "type": "string",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "created_at",
+            "type": "datetime",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "id",
+            "type": "int",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "nombre",
+            "type": "string",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "total",
+            "type": "decimal",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "transaction_id",
+            "type": "string",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "cambio",
+            "type": "decimal",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "estado",
+            "type": "string",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "fecha_pago",
+            "type": "datetime",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "metodo",
+            "type": "string",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "monto_recibido",
+            "type": "decimal",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "proveedor",
+            "type": "string",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "referencia",
+            "type": "string",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "venta_id",
+            "type": "int",
+            "visibility": "Private",
+            "notes": ""
+          }
+        ],
+        "methods": [],
+        "left": 830,
+        "top": -870,
+        "right": 1040,
+        "bottom": -1110
+      },
+      {
+        "id": 114,
+        "name": "Promocion",
+        "type": "Class",
+        "stereotype": "",
+        "attributes": [
+          {
+            "name": "activo",
+            "type": "bool",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "fecha_fin",
+            "type": "datetime",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "fecha_inicio",
+            "type": "datetime",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "id",
+            "type": "int",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "nombre",
+            "type": "string",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "tipo_descuento",
+            "type": "string",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "valor_descuento",
+            "type": "decimal",
+            "visibility": "Private",
+            "notes": ""
+          }
+        ],
+        "methods": [],
+        "left": 50,
+        "top": -1150,
+        "right": 250,
+        "bottom": -1330
+      },
+      {
+        "id": 115,
+        "name": "SesionVestidorVirtual",
+        "type": "Class",
+        "stereotype": "",
+        "attributes": [
+          {
+            "name": "dispositivo",
+            "type": "string",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "estado",
+            "type": "string",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "fecha_fin",
+            "type": "datetime",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "fecha_inicio",
+            "type": "datetime",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "id",
+            "type": "int",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "producto_id",
+            "type": "int",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "usuario_id",
+            "type": "int",
+            "visibility": "Private",
+            "notes": ""
+          }
+        ],
+        "methods": [],
+        "left": 1350,
+        "top": -40,
+        "right": 1560,
+        "bottom": -210
+      },
+      {
+        "id": 116,
+        "name": "RecomendacionIA",
+        "type": "Class",
+        "stereotype": "",
+        "attributes": [
+          {
+            "name": "fecha_creacion",
+            "type": "datetime",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "fuente",
+            "type": "string",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "id",
+            "type": "int",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "motivo",
+            "type": "string",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "producto_id",
+            "type": "int",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "puntuacion",
+            "type": "decimal",
+            "visibility": "Private",
+            "notes": ""
+          },
+          {
+            "name": "usuario_id",
+            "type": "int",
+            "visibility": "Private",
+            "notes": ""
+          }
+        ],
+        "methods": [],
+        "left": 310,
+        "top": -1150,
+        "right": 520,
+        "bottom": -1330
+      }
+    ],
+    "links": [
+      {
+        "id": 97,
+        "name": "clasifica",
+        "type": "Association",
+        "client": "Categoria",
+        "client_cardinality": "1",
+        "client_role": "",
+        "supplier": "Producto",
+        "supplier_cardinality": "0..*",
+        "supplier_role": ""
+      },
+      {
+        "id": 99,
+        "name": "tiene",
+        "type": "Association",
+        "client": "Usuario",
+        "client_cardinality": "0..*",
+        "client_role": "",
+        "supplier": "Producto",
+        "supplier_cardinality": "0..*",
+        "supplier_role": ""
+      },
+      {
+        "id": 101,
+        "name": "realiza",
+        "type": "Association",
+        "client": "Usuario",
+        "client_cardinality": "1",
+        "client_role": "",
+        "supplier": "Venta",
+        "supplier_cardinality": "0..*",
+        "supplier_role": ""
+      },
+      {
+        "id": 102,
+        "name": "genera",
+        "type": "Association",
+        "client": "Producto",
+        "client_cardinality": "1..*",
+        "client_role": "",
+        "supplier": "Venta",
+        "supplier_cardinality": "1..*",
+        "supplier_role": ""
+      },
+      {
+        "id": 104,
+        "name": "cancela_con",
+        "type": "Association",
+        "client": "Venta",
+        "client_cardinality": "1",
+        "client_role": "",
+        "supplier": "Pago",
+        "supplier_cardinality": "1..*",
+        "supplier_role": ""
+      },
+      {
+        "id": 107,
+        "name": "tiene",
+        "type": "Association",
+        "client": "Usuario",
+        "client_cardinality": "0..*",
+        "client_role": "",
+        "supplier": "Rol",
+        "supplier_cardinality": "1",
+        "supplier_role": ""
+      },
+      {
+        "id": 108,
+        "name": "asignado_a",
+        "type": "Association",
+        "client": "Usuario",
+        "client_cardinality": "0..*",
+        "client_role": "",
+        "supplier": "Sucursal",
+        "supplier_cardinality": "0..1",
+        "supplier_role": ""
+      },
+      {
+        "id": 109,
+        "name": "registra",
+        "type": "Association",
+        "client": "Usuario",
+        "client_cardinality": "1",
+        "client_role": "",
+        "supplier": "Bitacora",
+        "supplier_cardinality": "0..*",
+        "supplier_role": ""
+      },
+      {
+        "id": 110,
+        "name": "contiene",
+        "type": "Association",
+        "client": "Ciudad",
+        "client_cardinality": "1",
+        "client_role": "",
+        "supplier": "Sucursal",
+        "supplier_cardinality": "1..*",
+        "supplier_role": ""
+      },
+      {
+        "id": 111,
+        "name": "agrupa",
+        "type": "Association",
+        "client": "Temporada",
+        "client_cardinality": "1",
+        "client_role": "",
+        "supplier": "Coleccion",
+        "supplier_cardinality": "0..*",
+        "supplier_role": ""
+      },
+      {
+        "id": 112,
+        "name": "aplica_a",
+        "type": "Association",
+        "client": "Temporada",
+        "client_cardinality": "0..1",
+        "client_role": "",
+        "supplier": "Producto",
+        "supplier_cardinality": "0..*",
+        "supplier_role": ""
+      },
+      {
+        "id": 113,
+        "name": "contiene",
+        "type": "Association",
+        "client": "Coleccion",
+        "client_cardinality": "0..1",
+        "client_role": "",
+        "supplier": "Producto",
+        "supplier_cardinality": "0..*",
+        "supplier_role": ""
+      },
+      {
+        "id": 114,
+        "name": "posee",
+        "type": "Association",
+        "client": "Producto",
+        "client_cardinality": "1",
+        "client_role": "",
+        "supplier": "ImagenProducto",
+        "supplier_cardinality": "0..*",
+        "supplier_role": ""
+      },
+      {
+        "id": 115,
+        "name": "suministrado_por",
+        "type": "Association",
+        "client": "Producto",
+        "client_cardinality": "0..*",
+        "client_role": "",
+        "supplier": "Proveedor",
+        "supplier_cardinality": "0..*",
+        "supplier_role": ""
+      },
+      {
+        "id": 116,
+        "name": "compone",
+        "type": "Association",
+        "client": "Producto",
+        "client_cardinality": "1",
+        "client_role": "",
+        "supplier": "VarianteProducto",
+        "supplier_cardinality": "1..*",
+        "supplier_role": ""
+      },
+      {
+        "id": 117,
+        "name": "especifica",
+        "type": "Association",
+        "client": "Talla",
+        "client_cardinality": "1",
+        "client_role": "",
+        "supplier": "VarianteProducto",
+        "supplier_cardinality": "0..*",
+        "supplier_role": ""
+      },
+      {
+        "id": 118,
+        "name": "especifica",
+        "type": "Association",
+        "client": "Color",
+        "client_cardinality": "1",
+        "client_role": "",
+        "supplier": "VarianteProducto",
+        "supplier_cardinality": "0..*",
+        "supplier_role": ""
+      },
+      {
+        "id": 119,
+        "name": "almacena",
+        "type": "Association",
+        "client": "Sucursal",
+        "client_cardinality": "1",
+        "client_role": "",
+        "supplier": "Inventario",
+        "supplier_cardinality": "0..*",
+        "supplier_role": ""
+      },
+      {
+        "id": 120,
+        "name": "controla",
+        "type": "Association",
+        "client": "VarianteProducto",
+        "client_cardinality": "1",
+        "client_role": "",
+        "supplier": "Inventario",
+        "supplier_cardinality": "0..*",
+        "supplier_role": ""
+      },
+      {
+        "id": 121,
+        "name": "registra",
+        "type": "Association",
+        "client": "Inventario",
+        "client_cardinality": "1",
+        "client_role": "",
+        "supplier": "MovimientoInventario",
+        "supplier_cardinality": "0..*",
+        "supplier_role": ""
+      },
+      {
+        "id": 122,
+        "name": "posee",
+        "type": "Association",
+        "client": "Usuario",
+        "client_cardinality": "1",
+        "client_role": "",
+        "supplier": "Carrito",
+        "supplier_cardinality": "0..1",
+        "supplier_role": ""
+      },
+      {
+        "id": 123,
+        "name": "contiene",
+        "type": "Association",
+        "client": "Carrito",
+        "client_cardinality": "1",
+        "client_role": "",
+        "supplier": "DetalleCarrito",
+        "supplier_cardinality": "0..*",
+        "supplier_role": ""
+      },
+      {
+        "id": 124,
+        "name": "referencia",
+        "type": "Association",
+        "client": "VarianteProducto",
+        "client_cardinality": "1",
+        "client_role": "",
+        "supplier": "DetalleCarrito",
+        "supplier_cardinality": "0..*",
+        "supplier_role": ""
+      },
+      {
+        "id": 125,
+        "name": "solicita",
+        "type": "Association",
+        "client": "Usuario",
+        "client_cardinality": "1",
+        "client_role": "",
+        "supplier": "Reserva",
+        "supplier_cardinality": "0..*",
+        "supplier_role": ""
+      },
+      {
+        "id": 126,
+        "name": "atiende",
+        "type": "Association",
+        "client": "Sucursal",
+        "client_cardinality": "1",
+        "client_role": "",
+        "supplier": "Reserva",
+        "supplier_cardinality": "0..*",
+        "supplier_role": ""
+      },
+      {
+        "id": 127,
+        "name": "contiene",
+        "type": "Association",
+        "client": "Reserva",
+        "client_cardinality": "1",
+        "client_role": "",
+        "supplier": "DetalleReserva",
+        "supplier_cardinality": "1..*",
+        "supplier_role": ""
+      },
+      {
+        "id": 128,
+        "name": "aparta",
+        "type": "Association",
+        "client": "VarianteProducto",
+        "client_cardinality": "1",
+        "client_role": "",
+        "supplier": "DetalleReserva",
+        "supplier_cardinality": "0..*",
+        "supplier_role": ""
+      },
+      {
+        "id": 129,
+        "name": "origina",
+        "type": "Association",
+        "client": "Sucursal",
+        "client_cardinality": "1",
+        "client_role": "",
+        "supplier": "Venta",
+        "supplier_cardinality": "0..*",
+        "supplier_role": ""
+      },
+      {
+        "id": 130,
+        "name": "desglosa",
+        "type": "Association",
+        "client": "Venta",
+        "client_cardinality": "1",
+        "client_role": "",
+        "supplier": "DetalleVenta",
+        "supplier_cardinality": "1..*",
+        "supplier_role": ""
+      },
+      {
+        "id": 131,
+        "name": "incluye",
+        "type": "Association",
+        "client": "VarianteProducto",
+        "client_cardinality": "1",
+        "client_role": "",
+        "supplier": "DetalleVenta",
+        "supplier_cardinality": "0..*",
+        "supplier_role": ""
+      },
+      {
+        "id": 132,
+        "name": "aplica_a",
+        "type": "Association",
+        "client": "Promocion",
+        "client_cardinality": "0..*",
+        "client_role": "",
+        "supplier": "Producto",
+        "supplier_cardinality": "0..*",
+        "supplier_role": ""
+      },
+      {
+        "id": 133,
+        "name": "participa",
+        "type": "Association",
+        "client": "Usuario",
+        "client_cardinality": "1",
+        "client_role": "",
+        "supplier": "SesionVestidorVirtual",
+        "supplier_cardinality": "0..*",
+        "supplier_role": ""
+      },
+      {
+        "id": 134,
+        "name": "prueba",
+        "type": "Association",
+        "client": "Producto",
+        "client_cardinality": "1",
+        "client_role": "",
+        "supplier": "SesionVestidorVirtual",
+        "supplier_cardinality": "0..*",
+        "supplier_role": ""
+      },
+      {
+        "id": 135,
+        "name": "sugerida_a",
+        "type": "Association",
+        "client": "Usuario",
+        "client_cardinality": "1",
+        "client_role": "",
+        "supplier": "RecomendacionIA",
+        "supplier_cardinality": "0..*",
+        "supplier_role": ""
+      },
+      {
+        "id": 136,
+        "name": "recomienda",
+        "type": "Association",
+        "client": "Producto",
+        "client_cardinality": "1",
+        "client_role": "",
+        "supplier": "RecomendacionIA",
+        "supplier_cardinality": "0..*",
+        "supplier_role": ""
+      }
+    ]
+  }
+}

@@ -18,6 +18,31 @@ class RecordingNotifications extends NotificationService {
 }
 
 void main() {
+  test('aplica timeout de 45 segundos solo a transcripcion de audio', () async {
+    final observedTimeouts = <String, Duration>{};
+    final client = ApiClient(
+      client: MockClient((request) async => http.Response('{"ok":true}', 200)),
+      timeoutForPath: (path, timeout) {
+        observedTimeouts[path] = timeout;
+        return timeout;
+      },
+    );
+
+    await client.post('/reports/transcribe-audio', body: {'audio': 'payload'});
+    await client.get('/health');
+    await client.post('/catalogo/vton/try-on', body: {'image': 'payload'});
+
+    expect(
+      observedTimeouts['/reports/transcribe-audio'],
+      const Duration(seconds: 45),
+    );
+    expect(observedTimeouts['/health'], const Duration(seconds: 10));
+    expect(
+      observedTimeouts['/catalogo/vton/try-on'],
+      const Duration(seconds: 90),
+    );
+  });
+
   test('incluye el token y decodifica respuestas JSON', () async {
     final client = ApiClient(
       client: MockClient((request) async {
@@ -49,7 +74,8 @@ void main() {
       throwsA(
         isA<ApiException>()
             .having((error) => error.statusCode, 'statusCode', 404)
-            .having((error) => error.message, 'message', 'No existe'),
+            .having((error) => error.message, 'message', 'No existe')
+            .having((error) => error.code, 'code', 'NOT_FOUND'),
       ),
     );
     expect(notifications.errors, ['No existe']);
@@ -78,6 +104,31 @@ void main() {
       notifications.errors.first,
       contains('Error al conectar con el servidor'),
     );
+  });
+
+  test('convierte detalles de validacion en lista', () async {
+    final notifications = RecordingNotifications();
+    final client = ApiClient(
+      client: MockClient(
+        (_) async => http.Response(
+          '{"detail":[{"loc":["body","email"],"msg":"email invalido"}]}',
+          422,
+        ),
+      ),
+      notifications: notifications,
+    );
+
+    await expectLater(
+      client.post('/auth/login', body: {}),
+      throwsA(
+        isA<ApiException>().having(
+          (error) => error.message,
+          'message',
+          'email invalido',
+        ),
+      ),
+    );
+    expect(notifications.errors, ['email invalido']);
   });
 
   test('notifica éxito en solicitudes mutantes', () async {

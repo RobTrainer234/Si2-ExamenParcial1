@@ -97,28 +97,27 @@ class _AiChatScreenState extends ConsumerState<AiChatScreen> {
       final history = _messages
           .where((m) => m != _messages.last)
           .map(
-            (m) => {
-              'role': m.isUser ? 'user' : 'assistant',
-              'content': m.text,
-            },
+            (m) => {'role': m.isUser ? 'user' : 'assistant', 'content': m.text},
           )
           .toList();
 
-      final response = await ref
-          .read(apiClientProvider)
-          .post(
-            '/ai/chat',
-            body: {'message': text, 'history': history},
-          ) as Map<String, dynamic>;
+      final response =
+          await ref
+                  .read(apiClientProvider)
+                  .post('/ai/chat', body: {'message': text, 'history': history})
+              as Map<String, dynamic>;
 
       if (mounted) {
         setState(() {
           _messages.add(
             ChatMessageModel(
               isUser: false,
-              text: response['message'] as String? ?? 'No pude procesar tu solicitud.',
+              text:
+                  response['message'] as String? ??
+                  'No pude procesar tu solicitud.',
               suggestedProducts:
-                  (response['suggested_products'] as List<dynamic>?) ?? const [],
+                  (response['suggested_products'] as List<dynamic>?) ??
+                  const [],
               suggestedActions:
                   (response['suggested_actions'] as List<dynamic>?) ?? const [],
             ),
@@ -210,17 +209,19 @@ class _AiChatScreenState extends ConsumerState<AiChatScreen> {
               height: 48,
               child: ListView.separated(
                 scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 6,
+                ),
                 itemCount: _quickPrompts.length,
                 separatorBuilder: (_, _) => const SizedBox(width: 8),
                 itemBuilder: (context, index) {
                   final prompt = _quickPrompts[index];
                   return ActionChip(
-                    label: Text(
-                      prompt,
-                      style: const TextStyle(fontSize: 12),
-                    ),
-                    backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
+                    label: Text(prompt, style: const TextStyle(fontSize: 12)),
+                    backgroundColor: Theme.of(
+                      context,
+                    ).colorScheme.surfaceContainerHighest,
                     side: BorderSide.none,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(20),
@@ -245,7 +246,10 @@ class _AiChatScreenState extends ConsumerState<AiChatScreen> {
             ),
             if (_sending)
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
+                ),
                 child: Row(
                   children: [
                     const SizedBox(
@@ -330,7 +334,11 @@ class _AiChatScreenState extends ConsumerState<AiChatScreen> {
           ),
           child: Text(
             msg.text,
-            style: const TextStyle(color: Colors.white, fontSize: 14, height: 1.4),
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 14,
+              height: 1.4,
+            ),
           ),
         ),
       );
@@ -358,9 +366,14 @@ class _AiChatScreenState extends ConsumerState<AiChatScreen> {
                 const SizedBox(width: 8),
                 Expanded(
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 12,
+                    ),
                     decoration: BoxDecoration(
-                      color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.surfaceContainerHighest,
                       borderRadius: const BorderRadius.only(
                         topLeft: Radius.circular(4),
                         topRight: Radius.circular(16),
@@ -388,7 +401,8 @@ class _AiChatScreenState extends ConsumerState<AiChatScreen> {
                     itemCount: msg.suggestedProducts.length,
                     separatorBuilder: (_, _) => const SizedBox(width: 10),
                     itemBuilder: (context, i) {
-                      final p = msg.suggestedProducts[i] as Map<String, dynamic>;
+                      final p =
+                          msg.suggestedProducts[i] as Map<String, dynamic>;
                       return _buildProductCard(p);
                     },
                   ),
@@ -414,7 +428,8 @@ class _AiChatScreenState extends ConsumerState<AiChatScreen> {
                           ),
                         ),
                         avatar: const Icon(Icons.arrow_forward, size: 14),
-                        onPressed: () => _sendMessage(action['label'] as String),
+                        onPressed: () =>
+                            _sendMessage(action['label'] as String),
                       ),
                   ],
                 ),
@@ -436,12 +451,8 @@ class _AiChatScreenState extends ConsumerState<AiChatScreen> {
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: Theme.of(context).colorScheme.outlineVariant,
-        ),
-        boxShadow: [
-          BoxStyle.soft(Theme.of(context).colorScheme.shadow),
-        ],
+        border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
+        boxShadow: [BoxStyle.soft(Theme.of(context).colorScheme.shadow)],
       ),
       padding: const EdgeInsets.all(10),
       child: Column(

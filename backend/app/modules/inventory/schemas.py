@@ -71,3 +71,31 @@ class InventoryMovementPage(BaseModel):
     page_size: int
     total: int
     total_pages: int
+
+
+class QuarantineInspectionRequest(BaseModel):
+    decision: Literal["RELEASE", "REJECT"]
+    reason: str = Field(min_length=2, max_length=255)
+
+
+class QuarantineResponse(BaseModel):
+    id: int
+    tenant_id: int
+    branch_id: int
+    inventory_id: int
+    product_variant_id: int
+    exchange_item_id: int
+    quantity: int
+    status: Literal["PENDING", "RELEASED", "REJECTED"]
+    inspected_by: int | None
+    inspection_reason: str | None
+    inspected_at: datetime | None
+    created_at: datetime
+
+
+class QuarantinePage(BaseModel):
+    items: list[QuarantineResponse]
+    page: int
+    page_size: int
+    total: int
+    total_pages: int

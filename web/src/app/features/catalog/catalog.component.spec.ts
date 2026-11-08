@@ -1,8 +1,11 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { provideHttpClient } from '@angular/common/http';
+import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
 import { of, throwError } from 'rxjs';
-import { vi } from 'vitest';
+import { vi, beforeEach } from 'vitest';
 
+import { SyncCatalogService } from '../../core/offline/sync-catalog.service';
 import { CatalogService } from '../../core/catalog/catalog.service';
 import { CatalogItem } from '../../core/models/api.models';
 import { CatalogComponent } from './catalog.component';
@@ -31,6 +34,10 @@ describe('CatalogComponent collection browser', () => {
   let fixture: ComponentFixture<CatalogComponent>;
   let catalogService: { filters: ReturnType<typeof vi.fn>; list: ReturnType<typeof vi.fn>; navigation: ReturnType<typeof vi.fn> };
 
+  beforeEach(() => {
+    vi.spyOn(SyncCatalogService.prototype, 'autoSync').mockImplementation(() => {});
+  });
+
   const navigation = {
     audiences: [{ code: 'WOMEN' as const, name: 'Mujer', product_count: 2 }],
     categories: filters.categories,
@@ -48,6 +55,8 @@ describe('CatalogComponent collection browser', () => {
     await TestBed.configureTestingModule({
       imports: [CatalogComponent],
       providers: [
+        provideHttpClient(),
+        provideHttpClientTesting(),
         provideRouter([]),
         { provide: CatalogService, useValue: catalogService },
         { provide: ActivatedRoute, useValue: { queryParamMap: of(convertToParamMap({ audience: 'WOMEN', season_id: '5', collection_id: '8' })) } },
@@ -104,7 +113,6 @@ describe('CatalogComponent collection browser', () => {
     expect(host.textContent).not.toContain('Selección principal');
   });
 
-
   it('renders the restored toolbar, filter ribbon, active chips, and ordered grid structure', async () => {
     await createComponent([product(20, 'Vestido Lino', '/assets/vestido.jpg')]);
 
@@ -135,5 +143,19 @@ describe('CatalogComponent collection browser', () => {
       branch_id: 4,
       sort: 'newest',
     }));
+  });
+
+  it('renders the offline sync controls and handles manual sync click', async () => {
+    await createComponent();
+    const component = fixture.componentInstance;
+    const syncSpy = vi.spyOn(component.syncService, 'syncCatalog').mockReturnValue(of({} as any));
+
+    const host: HTMLElement = fixture.nativeElement;
+    const syncBtn = host.querySelector('.sync-btn') as HTMLButtonElement;
+    expect(syncBtn).not.toBeNull();
+    expect(syncBtn.textContent).toContain('Descargar catálogo offline');
+
+    syncBtn.click();
+    expect(syncSpy).toHaveBeenCalled();
   });
 });
